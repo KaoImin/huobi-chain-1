@@ -1543,6 +1543,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "governance"
+version = "0.4.0-beta2"
+dependencies = [
+ "async-trait",
+ "binding-macro",
+ "byteorder",
+ "bytes 0.5.4",
+ "cita_trie",
+ "derive_more 0.15.0",
+ "framework",
+ "hex",
+ "metadata 0.4.0-beta2",
+ "muta",
+ "muta-protocol",
+ "rlp 0.4.5",
+ "serde",
+ "serde_json",
+ "toml 0.5.6",
+]
+
+[[package]]
 name = "h2"
 version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1694,11 +1715,11 @@ dependencies = [
  "admission_control",
  "asset 0.4.0-beta2",
  "clap",
- "derive_more 0.15.0",
+ "derive_more 0.99.7",
+ "governance",
  "metadata 0.4.0-beta2",
  "muta",
  "muta-protocol",
- "node_manager",
  "riscv",
  "tokio 0.2.21",
 ]
@@ -2335,27 +2356,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "winapi 0.3.8",
-]
-
-[[package]]
-name = "node_manager"
-version = "0.4.0-beta2"
-dependencies = [
- "async-trait",
- "binding-macro",
- "byteorder",
- "bytes 0.5.4",
- "cita_trie",
- "derive_more 0.15.0",
- "framework",
- "hex",
- "metadata 0.4.0-beta2",
- "muta",
- "muta-protocol",
- "rlp 0.4.5",
- "serde",
- "serde_json",
- "toml 0.5.6",
 ]
 
 [[package]]

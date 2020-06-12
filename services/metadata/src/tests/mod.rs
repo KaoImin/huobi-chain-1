@@ -17,7 +17,7 @@ use protocol::{types::Bytes, ProtocolResult};
 use crate::types::UpdateMetadataPayload;
 use crate::MetadataService;
 
-static ADMISSION_TOKEN: Bytes = Bytes::from_static(b"node_manager");
+static ADMISSION_TOKEN: Bytes = Bytes::from_static(b"governance");
 
 #[test]
 fn test_get_metadata() {

@@ -29,5 +29,5 @@ payload = '''
 '''
 
 [[services]]
-name = "node_manager"
+name = "governance"
 payload = '{"admin": "0xf8389d774afdad8755ef8e629e5a154fddc6325a"}'

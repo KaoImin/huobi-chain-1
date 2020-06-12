@@ -20,7 +20,7 @@ use protocol::types::{
 use protocol::ProtocolResult;
 
 use crate::types::SetAdminPayload;
-use crate::{NodeManagerService, ADMIN_KEY};
+use crate::{GovernanceService, ADMIN_KEY};
 
 macro_rules! service {
     ($service:expr, $method:ident, $ctx:expr) => {{
@@ -75,7 +75,7 @@ fn test_update_metadata() {
         cycles_price: 1,
         cycles_limit: 60_000,
         request:      TransactionRequest {
-            service_name: "node_manager".to_owned(),
+            service_name: "governance".to_owned(),
             method:       "update_metadata".to_owned(),
             payload:      r#"{ "verifier_list": [{"bls_pub_key": "0xFFFFFFF9488c19458a963cc57b567adde7db8f8b6bec392d5cb7b67b0abc1ed6cd966edc451f6ac2ef38079460eb965e890d1f576e4039a20467820237cda753f07a8b8febae1ec052190973a1bcf00690ea8fc0168b3fbbccd1c4e402eda5ef22", "address": "0x016cbd9ee47a255a6f68882918dcdd9e14e6bee1", "propose_weight": 6, "vote_weight": 6}], "interval": 6, "propose_ratio": 6, "prevote_ratio": 6, "precommit_ratio": 6, "brake_ratio": 6 }"#
                 .to_owned(),
@@ -110,7 +110,7 @@ fn test_set_admin() {
     let cycles_limit = 1024 * 1024 * 1024; // 1073741824
     let context = mock_context(cycles_limit, admin_1.clone());
 
-    let mut service = new_node_manager_service(admin_1.clone());
+    let mut service = new_governance_service(admin_1.clone());
     let old_admin = service!(service, get_admin, context.clone());
     assert_eq!(old_admin, admin_1);
 
@@ -121,9 +121,9 @@ fn test_set_admin() {
     assert_eq!(new_admin, admin_2);
 }
 
-fn new_node_manager_service(
+fn new_governance_service(
     admin: Address,
-) -> NodeManagerService<
+) -> GovernanceService<
     DefalutServiceSDK<
         GeneralServiceState<MemoryDB>,
         DefaultChainQuerier<MockStorage>,
@@ -142,7 +142,7 @@ fn new_node_manager_service(
 
     sdk.set_value(ADMIN_KEY.to_string(), admin);
 
-    NodeManagerService::new(sdk)
+    GovernanceService::new(sdk)
 }
 
 fn mock_context(cycles_limit: u64, caller: Address) -> ServiceContext {
@@ -251,7 +251,7 @@ impl ServiceMapping for MockServiceMapping {
     ) -> ProtocolResult<Box<dyn Service>> {
         let service = match name {
             "metadata" => Box::new(MetadataService::new(sdk)) as Box<dyn Service>,
-            "node_manager" => Box::new(NodeManagerService::new(sdk)) as Box<dyn Service>,
+            "governance" => Box::new(GovernanceService::new(sdk)) as Box<dyn Service>,
             _ => panic!("not found service"),
         };
 
@@ -259,6 +259,6 @@ impl ServiceMapping for MockServiceMapping {
     }
 
     fn list_service_name(&self) -> Vec<String> {
-        vec!["metadata".to_owned(), "node_manager".to_owned()]
+        vec!["metadata".to_owned(), "governance".to_owned()]
     }
 }

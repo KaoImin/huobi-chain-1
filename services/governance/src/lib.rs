@@ -17,14 +17,14 @@ use crate::types::{
 };
 
 const ADMIN_KEY: &str = "admin";
-static ADMISSION_TOKEN: Bytes = Bytes::from_static(b"node_manager");
+static ADMISSION_TOKEN: Bytes = Bytes::from_static(b"governance");
 
-pub struct NodeManagerService<SDK> {
+pub struct GovernanceService<SDK> {
     sdk: SDK,
 }
 
 #[service]
-impl<SDK: ServiceSDK> NodeManagerService<SDK> {
+impl<SDK: ServiceSDK> GovernanceService<SDK> {
     pub fn new(sdk: SDK) -> Self {
         Self { sdk }
     }
