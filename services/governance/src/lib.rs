@@ -11,9 +11,10 @@ use protocol::traits::{ExecutorParams, ServiceResponse, ServiceSDK};
 use protocol::types::{Address, Metadata, ServiceContext};
 
 use crate::types::{
-    InitGenesisPayload, SetAdminEvent, SetAdminPayload, UpdateIntervalEvent, UpdateIntervalPayload,
-    UpdateMetadataEvent, UpdateMetadataPayload, UpdateRatioEvent, UpdateRatioPayload,
-    UpdateValidatorsEvent, UpdateValidatorsPayload,
+    GovernanceInfo, InitGenesisPayload, SetAdminEvent, SetAdminPayload, SetGovernInfoEvent,
+    SetGovernInfoPayload, UpdateIntervalEvent, UpdateIntervalPayload, UpdateMetadataEvent,
+    UpdateMetadataPayload, UpdateRatioEvent, UpdateRatioPayload, UpdateValidatorsEvent,
+    UpdateValidatorsPayload,
 };
 
 const ADMIN_KEY: &str = "admin";
@@ -31,24 +32,57 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
 
     #[genesis]
     fn init_genesis(&mut self, payload: InitGenesisPayload) {
-        self.sdk.set_value(ADMIN_KEY.to_string(), payload.admin);
+        self.sdk.set_value(ADMIN_KEY.to_string(), payload.inner);
     }
 
     #[cycles(210_00)]
     #[read]
-    fn get_admin(&self, ctx: ServiceContext) -> ServiceResponse<Address> {
-        let admin: Address = self
+    fn get_admin_address(&self, ctx: ServiceContext) -> ServiceResponse<Address> {
+        let info: GovernanceInfo = self
             .sdk
             .get_value(&ADMIN_KEY.to_owned())
             .expect("Admin should not be none");
 
-        ServiceResponse::from_succeed(admin)
+        ServiceResponse::from_succeed(info.admin)
+    }
+
+    #[cycles(210_00)]
+    #[read]
+    fn get_govern_info(&self, ctx: ServiceContext) -> ServiceResponse<GovernanceInfo> {
+        let info: GovernanceInfo = self
+            .sdk
+            .get_value(&ADMIN_KEY.to_owned())
+            .expect("Admin should not be none");
+
+        ServiceResponse::from_succeed(info)
+    }
+
+    #[cycles(210_00)]
+    #[read]
+    fn get_tx_failure_fee(&self, ctx: ServiceContext) -> ServiceResponse<u64> {
+        let info: GovernanceInfo = self
+            .sdk
+            .get_value(&ADMIN_KEY.to_owned())
+            .expect("Admin should not be none");
+
+        ServiceResponse::from_succeed(info.tx_failure_fee)
+    }
+
+    #[cycles(210_00)]
+    #[read]
+    fn get_tx_floor_fee(&self, ctx: ServiceContext) -> ServiceResponse<u64> {
+        let info: GovernanceInfo = self
+            .sdk
+            .get_value(&ADMIN_KEY.to_owned())
+            .expect("Admin should not be none");
+
+        ServiceResponse::from_succeed(info.tx_floor_fee)
     }
 
     #[cycles(210_00)]
     #[write]
     fn set_admin(&mut self, ctx: ServiceContext, payload: SetAdminPayload) -> ServiceResponse<()> {
-        if self.not_admin(&ctx) {
+        if !self.is_admin(&ctx) {
             return ServiceError::NonAuthorized.into();
         }
 
@@ -64,12 +98,33 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
 
     #[cycles(210_00)]
     #[write]
+    fn set_govern_info(
+        &mut self,
+        ctx: ServiceContext,
+        payload: SetGovernInfoPayload,
+    ) -> ServiceResponse<()> {
+        if !self.is_admin(&ctx) {
+            return ServiceError::NonAuthorized.into();
+        }
+
+        self.sdk
+            .set_value(ADMIN_KEY.to_owned(), payload.inner.clone());
+
+        let event = SetGovernInfoEvent {
+            topic: "Set New Govern Info".to_owned(),
+            info:  payload.inner,
+        };
+        Self::emit_event(&ctx, event)
+    }
+
+    #[cycles(210_00)]
+    #[write]
     fn update_metadata(
         &mut self,
         ctx: ServiceContext,
         payload: UpdateMetadataPayload,
     ) -> ServiceResponse<()> {
-        if self.not_admin(&ctx) {
+        if !self.is_admin(&ctx) {
             return ServiceError::NonAuthorized.into();
         }
 
@@ -77,15 +132,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             return err;
         }
 
-        let event = UpdateMetadataEvent {
-            topic:           "Metadata Updated".to_owned(),
-            verifier_list:   payload.verifier_list,
-            interval:        payload.interval,
-            propose_ratio:   payload.propose_ratio,
-            prevote_ratio:   payload.prevote_ratio,
-            precommit_ratio: payload.precommit_ratio,
-            brake_ratio:     payload.brake_ratio,
-        };
+        let event = UpdateMetadataEvent::from(payload);
         Self::emit_event(&ctx, event)
     }
 
@@ -96,24 +143,17 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         ctx: ServiceContext,
         payload: UpdateValidatorsPayload,
     ) -> ServiceResponse<()> {
-        if self.not_admin(&ctx) {
+        if !self.is_admin(&ctx) {
             return ServiceError::NonAuthorized.into();
         }
 
-        let metadata = match self.get_metadata(&ctx) {
+        let mut metadata = match self.get_metadata(&ctx) {
             Ok(m) => m,
             Err(resp) => return resp,
         };
 
-        let update_metadata_payload = UpdateMetadataPayload {
-            verifier_list:   payload.verifier_list.clone(),
-            interval:        metadata.interval,
-            propose_ratio:   metadata.propose_ratio,
-            prevote_ratio:   metadata.prevote_ratio,
-            precommit_ratio: metadata.precommit_ratio,
-            brake_ratio:     metadata.brake_ratio,
-        };
-        if let Err(err) = self.write_metadata(&ctx, update_metadata_payload) {
+        metadata.verifier_list = payload.verifier_list.clone();
+        if let Err(err) = self.write_metadata(&ctx, UpdateMetadataPayload::from(metadata)) {
             return err;
         }
 
@@ -131,24 +171,17 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         ctx: ServiceContext,
         payload: UpdateIntervalPayload,
     ) -> ServiceResponse<()> {
-        if self.not_admin(&ctx) {
+        if !self.is_admin(&ctx) {
             return ServiceError::NonAuthorized.into();
         }
 
-        let metadata = match self.get_metadata(&ctx) {
+        let mut metadata = match self.get_metadata(&ctx) {
             Ok(m) => m,
             Err(resp) => return resp,
         };
 
-        let update_metadata_payload = UpdateMetadataPayload {
-            verifier_list:   metadata.verifier_list,
-            interval:        payload.interval,
-            propose_ratio:   metadata.propose_ratio,
-            prevote_ratio:   metadata.prevote_ratio,
-            precommit_ratio: metadata.precommit_ratio,
-            brake_ratio:     metadata.brake_ratio,
-        };
-        if let Err(err) = self.write_metadata(&ctx, update_metadata_payload) {
+        metadata.interval = payload.interval;
+        if let Err(err) = self.write_metadata(&ctx, UpdateMetadataPayload::from(metadata)) {
             return err;
         }
 
@@ -166,7 +199,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         ctx: ServiceContext,
         payload: UpdateRatioPayload,
     ) -> ServiceResponse<()> {
-        if self.not_admin(&ctx) {
+        if !self.is_admin(&ctx) {
             return ServiceError::NonAuthorized.into();
         }
 
@@ -197,14 +230,14 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         Self::emit_event(&ctx, event)
     }
 
-    fn not_admin(&self, ctx: &ServiceContext) -> bool {
+    fn is_admin(&self, ctx: &ServiceContext) -> bool {
         let caller = ctx.get_caller();
         let admin: Address = self
             .sdk
             .get_value(&ADMIN_KEY.to_string())
             .expect("Admin should not be none");
 
-        admin != caller
+        admin == caller
     }
 
     fn get_metadata(&self, ctx: &ServiceContext) -> Result<Metadata, ServiceResponse<()>> {
@@ -235,11 +268,12 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             "update_metadata",
             &payload_json,
         );
-        if resp.is_error() {
-            return Err(ServiceResponse::from_error(resp.code, resp.error_message));
-        }
 
-        Ok(())
+        if resp.is_error() {
+            Err(ServiceResponse::from_error(resp.code, resp.error_message))
+        } else {
+            Ok(())
+        }
     }
 
     fn emit_event<T: Serialize>(ctx: &ServiceContext, event: T) -> ServiceResponse<()> {

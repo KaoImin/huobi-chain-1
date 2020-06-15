@@ -111,13 +111,13 @@ fn test_set_admin() {
     let context = mock_context(cycles_limit, admin_1.clone());
 
     let mut service = new_governance_service(admin_1.clone());
-    let old_admin = service!(service, get_admin, context.clone());
+    let old_admin = service!(service, get_admin_address, context.clone());
     assert_eq!(old_admin, admin_1);
 
     service!(service, set_admin, context.clone(), SetAdminPayload {
         admin: admin_2.clone(),
     });
-    let new_admin = service!(service, get_admin, context);
+    let new_admin = service!(service, get_admin_address, context);
     assert_eq!(new_admin, admin_2);
 }
 
