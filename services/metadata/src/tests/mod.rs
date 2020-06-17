@@ -55,6 +55,11 @@ fn test_update_metadata() {
         prevote_ratio:   update_metadata.prevote_ratio,
         precommit_ratio: update_metadata.precommit_ratio,
         brake_ratio:     update_metadata.brake_ratio,
+        timeout_gap:     update_metadata.timeout_gap,
+        cycles_limit:    update_metadata.cycles_limit,
+        cycles_price:    update_metadata.cycles_price,
+        tx_num_limit:    update_metadata.tx_num_limit,
+        max_tx_size:     update_metadata.max_tx_size,
     });
 
     let metadata = service.get_metadata(context);

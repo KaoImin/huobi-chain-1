@@ -24,6 +24,7 @@ cita_trie = "2.0"
 async-trait = "0.1"
 hex = "0.4"
 toml = "0.5"
-framework = { git = "https://github.com/nervosnetwork/muta", tag = "v0.1.2-beta2"}
+framework = { git = "https://github.com/nervosnetwork/muta", tag = "v0.1.2-beta2" }
 metadata = { path = "../metadata" }
+asset = { path = "../asset" }
 

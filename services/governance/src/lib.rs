@@ -146,10 +146,12 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         payload: UpdateMetadataPayload,
     ) -> ServiceResponse<()> {
         if !self.is_admin(&ctx) {
+            println!("xxxxxx");
             return ServiceError::NonAuthorized.into();
         }
 
         if let Err(err) = self.write_metadata(&ctx, payload.clone()) {
+            println!("{:?}", err);
             return err;
         }
 
@@ -215,20 +217,16 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             return ServiceError::NonAuthorized.into();
         }
 
-        let metadata = match self.get_metadata(&ctx) {
+        let mut metadata = match self.get_metadata(&ctx) {
             Ok(m) => m,
             Err(resp) => return resp,
         };
+        metadata.propose_ratio = payload.propose_ratio;
+        metadata.prevote_ratio = payload.prevote_ratio;
+        metadata.precommit_ratio = payload.precommit_ratio;
+        metadata.brake_ratio = payload.brake_ratio;
 
-        let update_metadata_payload = UpdateMetadataPayload {
-            verifier_list:   metadata.verifier_list,
-            interval:        metadata.interval,
-            propose_ratio:   payload.propose_ratio,
-            prevote_ratio:   payload.prevote_ratio,
-            precommit_ratio: payload.precommit_ratio,
-            brake_ratio:     payload.brake_ratio,
-        };
-        if let Err(err) = self.write_metadata(&ctx, update_metadata_payload) {
+        if let Err(err) = self.write_metadata(&ctx, UpdateMetadataPayload::from(metadata)) {
             return err;
         }
 
@@ -310,12 +308,12 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
 
     fn is_admin(&self, ctx: &ServiceContext) -> bool {
         let caller = ctx.get_caller();
-        let admin: Address = self
+        let info: GovernanceInfo = self
             .sdk
             .get_value(&ADMIN_KEY.to_string())
             .expect("Admin should not be none");
 
-        admin == caller
+        info.admin == caller
     }
 
     fn get_metadata(&self, ctx: &ServiceContext) -> Result<Metadata, ServiceResponse<()>> {
@@ -384,7 +382,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             &ctx,
             Some(ADMISSION_TOKEN.clone()),
             "asset",
-            "get_navie_asset",
+            "get_native_asset",
             "",
         );
 
@@ -427,5 +425,16 @@ impl ServiceError {
 impl<T: Default> From<ServiceError> for ServiceResponse<T> {
     fn from(err: ServiceError) -> ServiceResponse<T> {
         ServiceResponse::from_error(err.code(), err.to_string())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use protocol::types::{Address, Bytes, Hash};
+
+    #[test]
+    fn test() {
+        let a = Hash::digest(Bytes::from(vec![0u8, 1, 2]));
+        println!("{:?}", Address::from_hash(a).unwrap());
     }
 }

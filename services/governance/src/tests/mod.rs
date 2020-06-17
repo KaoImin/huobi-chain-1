@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use cita_trie::MemoryDB;
 
+use asset::AssetService;
 use framework::binding::sdk::{DefalutServiceSDK, DefaultChainQuerier};
 use framework::binding::state::{GeneralServiceState, MPTTrie};
 use framework::executor::ServiceExecutor;
@@ -19,7 +20,7 @@ use protocol::types::{
 };
 use protocol::ProtocolResult;
 
-use crate::types::SetAdminPayload;
+use crate::types::{DiscountLevel, GovernanceInfo, SetAdminPayload};
 use crate::{GovernanceService, ADMIN_KEY};
 
 macro_rules! service {
@@ -77,7 +78,7 @@ fn test_update_metadata() {
         request:      TransactionRequest {
             service_name: "governance".to_owned(),
             method:       "update_metadata".to_owned(),
-            payload:      r#"{ "verifier_list": [{"bls_pub_key": "0xFFFFFFF9488c19458a963cc57b567adde7db8f8b6bec392d5cb7b67b0abc1ed6cd966edc451f6ac2ef38079460eb965e890d1f576e4039a20467820237cda753f07a8b8febae1ec052190973a1bcf00690ea8fc0168b3fbbccd1c4e402eda5ef22", "address": "0x016cbd9ee47a255a6f68882918dcdd9e14e6bee1", "propose_weight": 6, "vote_weight": 6}], "interval": 6, "propose_ratio": 6, "prevote_ratio": 6, "precommit_ratio": 6, "brake_ratio": 6 }"#
+            payload:      r#"{ "verifier_list": [{"bls_pub_key": "0xFFFFFFF9488c19458a963cc57b567adde7db8f8b6bec392d5cb7b67b0abc1ed6cd966edc451f6ac2ef38079460eb965e890d1f576e4039a20467820237cda753f07a8b8febae1ec052190973a1bcf00690ea8fc0168b3fbbccd1c4e402eda5ef22", "address": "0x016cbd9ee47a255a6f68882918dcdd9e14e6bee1", "propose_weight": 6, "vote_weight": 6}], "interval": 6, "propose_ratio": 6, "prevote_ratio": 6, "precommit_ratio": 6, "brake_ratio": 6, "timeout_gap": 20, "cycles_limit": 3000000, "cycles_price": 3000, "tx_num_limit": 20000, "max_tx_size": 500000 }"#
                 .to_owned(),
         },
     };
@@ -91,13 +92,11 @@ fn test_update_metadata() {
         signature: BytesMut::from("").freeze(),
     };
 
-    let txs = vec![stx];
-    let ctx = Context::new();
-    let executor_resp = executor.exec(ctx, &params, &txs).unwrap();
+    let executor_resp = executor.exec(Context::new(), &params, &vec![stx]).unwrap();
     let receipt = &executor_resp.receipts[0];
     let event = &receipt.events[0];
 
-    let expect_event = r#"{"topic":"Metadata Updated","verifier_list":[{"bls_pub_key":"0xFFFFFFF9488c19458a963cc57b567adde7db8f8b6bec392d5cb7b67b0abc1ed6cd966edc451f6ac2ef38079460eb965e890d1f576e4039a20467820237cda753f07a8b8febae1ec052190973a1bcf00690ea8fc0168b3fbbccd1c4e402eda5ef22","address":"0x016cbd9ee47a255a6f68882918dcdd9e14e6bee1","propose_weight":6,"vote_weight":6}],"interval":6,"propose_ratio":6,"prevote_ratio":6,"precommit_ratio":6,"brake_ratio":6}"#.to_owned();
+    let expect_event = r#"{"topic":"Metadata Updated","verifier_list":[{"bls_pub_key":"0xFFFFFFF9488c19458a963cc57b567adde7db8f8b6bec392d5cb7b67b0abc1ed6cd966edc451f6ac2ef38079460eb965e890d1f576e4039a20467820237cda753f07a8b8febae1ec052190973a1bcf00690ea8fc0168b3fbbccd1c4e402eda5ef22","address":"0x016cbd9ee47a255a6f68882918dcdd9e14e6bee1","propose_weight":6,"vote_weight":6}],"interval":6,"propose_ratio":6,"prevote_ratio":6,"precommit_ratio":6,"brake_ratio":6,"timeout_gap":20,"cycles_limit":3000000,"cycles_price":3000,"tx_num_limit":20000,"max_tx_size":500000}"#.to_owned();
 
     assert_eq!(expect_event, event.data);
 }
@@ -140,9 +139,35 @@ fn new_governance_service(
         NoopDispatcher {},
     );
 
-    sdk.set_value(ADMIN_KEY.to_string(), admin);
+    sdk.set_value(ADMIN_KEY.to_string(), mock_governance_info(admin));
 
     GovernanceService::new(sdk)
+}
+
+fn mock_governance_info(admin: Address) -> GovernanceInfo {
+    let levels = vec![
+        DiscountLevel {
+            amount:               1000,
+            discount_per_million: 90,
+        },
+        DiscountLevel {
+            amount:               10000,
+            discount_per_million: 70,
+        },
+        DiscountLevel {
+            amount:               100000,
+            discount_per_million: 50,
+        },
+    ];
+
+    GovernanceInfo {
+        admin,
+        tx_failure_fee: 10,
+        tx_floor_fee: 10,
+        profit_deduct_rate: 3,
+        miner_benefit: 20,
+        tx_fee_discount: levels,
+    }
 }
 
 fn mock_context(cycles_limit: u64, caller: Address) -> ServiceContext {
@@ -250,6 +275,7 @@ impl ServiceMapping for MockServiceMapping {
         sdk: SDK,
     ) -> ProtocolResult<Box<dyn Service>> {
         let service = match name {
+            "asset" => Box::new(AssetService::new(sdk)) as Box<dyn Service>,
             "metadata" => Box::new(MetadataService::new(sdk)) as Box<dyn Service>,
             "governance" => Box::new(GovernanceService::new(sdk)) as Box<dyn Service>,
             _ => panic!("not found service"),
@@ -259,6 +285,10 @@ impl ServiceMapping for MockServiceMapping {
     }
 
     fn list_service_name(&self) -> Vec<String> {
-        vec!["metadata".to_owned(), "governance".to_owned()]
+        vec![
+            "asset".to_owned(),
+            "metadata".to_owned(),
+            "governance".to_owned(),
+        ]
     }
 }

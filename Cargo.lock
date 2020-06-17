@@ -1546,6 +1546,7 @@ dependencies = [
 name = "governance"
 version = "0.4.0-beta2"
 dependencies = [
+ "asset 0.4.0-beta2",
  "async-trait",
  "binding-macro",
  "byteorder",
