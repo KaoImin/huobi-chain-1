@@ -101,8 +101,13 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             return ServiceError::NonAuthorized.into();
         }
 
-        self.sdk
-            .set_value(ADMIN_KEY.to_owned(), payload.admin.clone());
+        let mut info: GovernanceInfo = self
+            .sdk
+            .get_value(&ADMIN_KEY.to_owned())
+            .expect("Admin should not be none");
+        info.admin = payload.admin.clone();
+
+        self.sdk.set_value(ADMIN_KEY.to_owned(), info);
 
         let event = SetAdminEvent {
             topic: "Set New Admin".to_owned(),
@@ -148,8 +153,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             return err;
         }
 
-        let event = UpdateMetadataEvent::from(payload);
-        Self::emit_event(&ctx, event)
+        Self::emit_event(&ctx, UpdateMetadataEvent::from(payload))
     }
 
     #[cycles(210_00)]
@@ -173,11 +177,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             return err;
         }
 
-        let event = UpdateValidatorsEvent {
-            topic:         "Validators Updated".to_owned(),
-            verifier_list: payload.verifier_list,
-        };
-        Self::emit_event(&ctx, event)
+        Self::emit_event(&ctx, UpdateValidatorsEvent::from(payload))
     }
 
     #[cycles(210_00)]
@@ -201,11 +201,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             return err;
         }
 
-        let event = UpdateIntervalEvent {
-            topic:    "Interval Updated".to_owned(),
-            interval: payload.interval,
-        };
-        Self::emit_event(&ctx, event)
+        Self::emit_event(&ctx, UpdateIntervalEvent::from(payload))
     }
 
     #[cycles(210_00)]
@@ -236,14 +232,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             return err;
         }
 
-        let event = UpdateRatioEvent {
-            topic:           "Ratio Updated".to_owned(),
-            propose_ratio:   payload.propose_ratio,
-            prevote_ratio:   payload.prevote_ratio,
-            precommit_ratio: payload.precommit_ratio,
-            brake_ratio:     payload.brake_ratio,
-        };
-        Self::emit_event(&ctx, event)
+        Self::emit_event(&ctx, UpdateRatioEvent::from(payload))
     }
 
     #[cycles(210_00)]
@@ -289,7 +278,11 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         let asset = self
             .get_native_asset(&ctx)
             .expect("Can not get native asset");
-        let profits = self.profits.iter().map(|i| (i.0.clone(), i.1)).collect::<Vec<_>>();
+        let profits = self
+            .profits
+            .iter()
+            .map(|i| (i.0.clone(), i.1))
+            .collect::<Vec<_>>();
 
         for (addr, profit) in profits.iter() {
             let tmp_fee = profit * profit_deduct_rate / MILLION;

@@ -123,6 +123,15 @@ pub struct UpdateValidatorsEvent {
     pub verifier_list: Vec<ValidatorExtend>,
 }
 
+impl From<UpdateValidatorsPayload> for UpdateValidatorsEvent {
+    fn from(payload: UpdateValidatorsPayload) -> Self {
+        UpdateValidatorsEvent {
+            topic:         "Validators Updated".to_owned(),
+            verifier_list: payload.verifier_list,
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct UpdateIntervalPayload {
     pub interval: u64,
@@ -132,6 +141,15 @@ pub struct UpdateIntervalPayload {
 pub struct UpdateIntervalEvent {
     pub topic:    String,
     pub interval: u64,
+}
+
+impl From<UpdateIntervalPayload> for UpdateIntervalEvent {
+    fn from(payload: UpdateIntervalPayload) -> Self {
+        UpdateIntervalEvent {
+            topic:    "Interval Updated".to_owned(),
+            interval: payload.interval,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -149,6 +167,18 @@ pub struct UpdateRatioEvent {
     pub prevote_ratio:   u64,
     pub precommit_ratio: u64,
     pub brake_ratio:     u64,
+}
+
+impl From<UpdateRatioPayload> for UpdateRatioEvent {
+    fn from(payload: UpdateRatioPayload) -> Self {
+        UpdateRatioEvent {
+            topic:           "Ratio Updated".to_owned(),
+            propose_ratio:   payload.propose_ratio,
+            prevote_ratio:   payload.prevote_ratio,
+            precommit_ratio: payload.precommit_ratio,
+            brake_ratio:     payload.brake_ratio,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
