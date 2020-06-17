@@ -6,33 +6,48 @@ use bytes::Bytes;
 use derive_more::{Display, From};
 use serde::Serialize;
 
-use binding_macro::{cycles, genesis, service};
-use protocol::traits::{ExecutorParams, ServiceResponse, ServiceSDK};
+use binding_macro::{cycles, genesis, service, tx_hook_after};
+use protocol::traits::{ExecutorParams, ServiceResponse, ServiceSDK, StoreMap};
 use protocol::types::{Address, Metadata, ServiceContext};
 
 use crate::types::{
-    GovernanceInfo, InitGenesisPayload, SetAdminEvent, SetAdminPayload, SetGovernInfoEvent,
-    SetGovernInfoPayload, UpdateIntervalEvent, UpdateIntervalPayload, UpdateMetadataEvent,
+    AccmulateProfitPayload, Asset, CalcFeePayload, DiscountLevel, GovernanceInfo,
+    InitGenesisPayload, SetAdminEvent, SetAdminPayload, SetGovernInfoEvent, SetGovernInfoPayload,
+    TransferFromPayload, UpdateIntervalEvent, UpdateIntervalPayload, UpdateMetadataEvent,
     UpdateMetadataPayload, UpdateRatioEvent, UpdateRatioPayload, UpdateValidatorsEvent,
     UpdateValidatorsPayload,
 };
 
 const ADMIN_KEY: &str = "admin";
+const FEE_ADDRESS_KEY: &str = "fee_addrss";
+const MINER_ADDRESS_KEY: &str = "miner_address";
+const MILLION: u64 = 1_000_000;
+const HUNDRED: u64 = 100;
 static ADMISSION_TOKEN: Bytes = Bytes::from_static(b"governance");
 
 pub struct GovernanceService<SDK> {
-    sdk: SDK,
+    sdk:     SDK,
+    profits: Box<dyn StoreMap<Address, u64>>,
 }
 
 #[service]
 impl<SDK: ServiceSDK> GovernanceService<SDK> {
-    pub fn new(sdk: SDK) -> Self {
-        Self { sdk }
+    pub fn new(mut sdk: SDK) -> Self {
+        let profits: Box<dyn StoreMap<Address, u64>> = sdk.alloc_or_recover_map("profit");
+        Self { sdk, profits }
     }
 
     #[genesis]
     fn init_genesis(&mut self, payload: InitGenesisPayload) {
-        self.sdk.set_value(ADMIN_KEY.to_string(), payload.inner);
+        assert!(self.profits.is_empty());
+
+        let mut info = payload.info;
+        info.tx_fee_discount.sort();
+        self.sdk.set_value(ADMIN_KEY.to_string(), info);
+        self.sdk
+            .set_value(FEE_ADDRESS_KEY.to_string(), payload.fee_address);
+        self.sdk
+            .set_value(MINER_ADDRESS_KEY.to_string(), payload.miner_address);
     }
 
     #[cycles(210_00)]
@@ -107,12 +122,13 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             return ServiceError::NonAuthorized.into();
         }
 
-        self.sdk
-            .set_value(ADMIN_KEY.to_owned(), payload.inner.clone());
+        let mut info = payload.inner;
+        info.tx_fee_discount.sort();
+        self.sdk.set_value(ADMIN_KEY.to_owned(), info.clone());
 
         let event = SetGovernInfoEvent {
             topic: "Set New Govern Info".to_owned(),
-            info:  payload.inner,
+            info,
         };
         Self::emit_event(&ctx, event)
     }
@@ -230,6 +246,75 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         Self::emit_event(&ctx, event)
     }
 
+    #[cycles(210_00)]
+    #[write]
+    fn accumulate_profit(
+        &mut self,
+        ctx: ServiceContext,
+        payload: AccmulateProfitPayload,
+    ) -> ServiceResponse<()> {
+        let address = payload.address;
+        let new_profit = payload.accmulated_profit;
+
+        if let Some(profit) = self.profits.get(&address) {
+            self.profits.insert(address, profit + new_profit);
+        } else {
+            self.profits.insert(address, new_profit);
+        }
+
+        ServiceResponse::from_succeed(())
+    }
+
+    #[cycles(210_00)]
+    #[read]
+    fn calc_tx_fee(&self, ctx: ServiceContext, payload: CalcFeePayload) -> ServiceResponse<u64> {
+        let info: GovernanceInfo = self
+            .sdk
+            .get_value(&ADMIN_KEY.to_owned())
+            .expect("Admin should not be none");
+        let tmp_fee = payload.profit * info.profit_deduct_rate / MILLION;
+
+        let tmp = self.calc_discount_fee(tmp_fee, &info.tx_fee_discount);
+        ServiceResponse::from_succeed(tmp.max(info.tx_floor_fee))
+    }
+
+    #[tx_hook_after]
+    fn tx_hook_after_(&mut self, ctx: ServiceContext) {
+        let info: GovernanceInfo = self
+            .sdk
+            .get_value(&ADMIN_KEY.to_owned())
+            .expect("Admin should not be none");
+        let fee_address: Address = self.sdk.get_value(&FEE_ADDRESS_KEY.to_owned()).unwrap();
+        let profit_deduct_rate = info.profit_deduct_rate;
+        let asset = self
+            .get_native_asset(&ctx)
+            .expect("Can not get native asset");
+        let profits = self.profits.iter().map(|i| (i.0.clone(), i.1)).collect::<Vec<_>>();
+
+        for (addr, profit) in profits.iter() {
+            let tmp_fee = profit * profit_deduct_rate / MILLION;
+            let fee = self.calc_discount_fee(tmp_fee, &info.tx_fee_discount);
+            let _ = self.transfer_from(&ctx, TransferFromPayload {
+                asset_id:  asset.id.clone(),
+                sender:    addr.clone(),
+                recipient: fee_address.clone(),
+                value:     fee,
+            });
+        }
+    }
+
+    fn calc_discount_fee(&self, origin_fee: u64, discount_level: &[DiscountLevel]) -> u64 {
+        let mut discount = HUNDRED;
+        for level in discount_level.iter().rev() {
+            if origin_fee >= level.amount {
+                discount = level.discount_per_million;
+                break;
+            }
+        }
+
+        origin_fee * discount / HUNDRED
+    }
+
     fn is_admin(&self, ctx: &ServiceContext) -> bool {
         let caller = ctx.get_caller();
         let admin: Address = self
@@ -273,6 +358,48 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             Err(ServiceResponse::from_error(resp.code, resp.error_message))
         } else {
             Ok(())
+        }
+    }
+
+    fn transfer_from(
+        &mut self,
+        ctx: &ServiceContext,
+        payload: TransferFromPayload,
+    ) -> Result<(), ServiceResponse<()>> {
+        let payload_json = match serde_json::to_string(&payload) {
+            Ok(j) => j,
+            Err(err) => return Err(ServiceError::JsonParse(err).into()),
+        };
+
+        let resp = self.sdk.write(
+            &ctx,
+            Some(ADMISSION_TOKEN.clone()),
+            "asset",
+            "transfer_from",
+            &payload_json,
+        );
+
+        if resp.is_error() {
+            Err(ServiceResponse::from_error(resp.code, resp.error_message))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn get_native_asset(&self, ctx: &ServiceContext) -> Result<Asset, ServiceResponse<Asset>> {
+        let resp = self.sdk.read(
+            &ctx,
+            Some(ADMISSION_TOKEN.clone()),
+            "asset",
+            "get_navie_asset",
+            "",
+        );
+
+        if resp.is_error() {
+            Err(ServiceResponse::from_error(resp.code, resp.error_message))
+        } else {
+            let ret: Asset = serde_json::from_str(&resp.succeed_data).unwrap();
+            Ok(ret)
         }
     }
 

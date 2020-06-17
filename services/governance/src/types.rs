@@ -1,13 +1,17 @@
+use std::cmp::Ordering;
+
 use muta_codec_derive::RlpFixedCodec;
 use serde::{Deserialize, Serialize};
 
 use protocol::fixed_codec::{FixedCodec, FixedCodecError};
-use protocol::types::{Address, Bytes, Metadata, ValidatorExtend};
+use protocol::types::{Address, Bytes, Hash, Metadata, ValidatorExtend};
 use protocol::ProtocolResult;
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug)]
 pub struct InitGenesisPayload {
-    pub inner: GovernanceInfo,
+    pub info:          GovernanceInfo,
+    pub fee_address:   Address,
+    pub miner_address: Address,
 }
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug, Default)]
@@ -16,14 +20,26 @@ pub struct GovernanceInfo {
     pub tx_failure_fee:     u64,
     pub tx_floor_fee:       u64,
     pub profit_deduct_rate: u64,
-    pub tx_fee_discount:    DiscountLevel,
+    pub tx_fee_discount:    Vec<DiscountLevel>,
     pub miner_benefit:      u64,
 }
 
-#[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug, Default)]
+#[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct DiscountLevel {
     pub amount:               u64,
-    pub discount_pre_million: u64,
+    pub discount_per_million: u64,
+}
+
+impl PartialOrd for DiscountLevel {
+    fn partial_cmp(&self, other: &DiscountLevel) -> Option<Ordering> {
+        self.amount.partial_cmp(&other.amount)
+    }
+}
+
+impl Ord for DiscountLevel {
+    fn cmp(&self, other: &DiscountLevel) -> Ordering {
+        self.amount.cmp(&other.amount)
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -133,4 +149,33 @@ pub struct UpdateRatioEvent {
     pub prevote_ratio:   u64,
     pub precommit_ratio: u64,
     pub brake_ratio:     u64,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct AccmulateProfitPayload {
+    pub address:           Address,
+    pub accmulated_profit: u64,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct CalcFeePayload {
+    pub profit: u64,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct TransferFromPayload {
+    pub asset_id:  Hash,
+    pub sender:    Address,
+    pub recipient: Address,
+    pub value:     u64,
+}
+
+#[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug, PartialEq, Default)]
+pub struct Asset {
+    pub id:        Hash,
+    pub name:      String,
+    pub symbol:    String,
+    pub supply:    u64,
+    pub precision: u64,
+    pub issuer:    Address,
 }
