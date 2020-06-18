@@ -103,8 +103,8 @@ fn test_update_metadata() {
 
 #[test]
 fn test_set_admin() {
-    let admin_1: Address = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
-    let admin_2: Address = Address::from_hex("0xf8389d774afdad8755ef8e629e5a154fddc6325a").unwrap();
+    let admin_1 = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let admin_2 = Address::from_hex("0xf8389d774afdad8755ef8e629e5a154fddc6325a").unwrap();
 
     let cycles_limit = 1024 * 1024 * 1024; // 1073741824
     let context = mock_context(cycles_limit, admin_1.clone());
@@ -118,6 +118,20 @@ fn test_set_admin() {
     });
     let new_admin = service!(service, get_admin_address, context);
     assert_eq!(new_admin, admin_2);
+}
+
+#[test]
+fn test_get_fee() {
+    let admin = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let cycles_limit = 1024 * 1024 * 1024; // 1073741824
+    let context = mock_context(cycles_limit, admin.clone());
+
+    let service = new_governance_service(admin.clone());
+    let floor_fee = service!(service, get_tx_floor_fee, context.clone());
+    let failure_fee = service!(service, get_tx_failure_fee, context);
+
+    assert_eq!(floor_fee, 10);
+    assert_eq!(failure_fee, 20);
 }
 
 fn new_governance_service(
@@ -162,7 +176,7 @@ fn mock_governance_info(admin: Address) -> GovernanceInfo {
 
     GovernanceInfo {
         admin,
-        tx_failure_fee: 10,
+        tx_failure_fee: 20,
         tx_floor_fee: 10,
         profit_deduct_rate: 3,
         miner_benefit: 20,
