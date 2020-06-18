@@ -92,7 +92,7 @@ fn test_update_metadata() {
         signature: BytesMut::from("").freeze(),
     };
 
-    let executor_resp = executor.exec(Context::new(), &params, &vec![stx]).unwrap();
+    let executor_resp = executor.exec(Context::new(), &params, &[stx]).unwrap();
     let receipt = &executor_resp.receipts[0];
     let event = &receipt.events[0];
 
@@ -126,7 +126,7 @@ fn test_get_fee() {
     let cycles_limit = 1024 * 1024 * 1024; // 1073741824
     let context = mock_context(cycles_limit, admin.clone());
 
-    let service = new_governance_service(admin.clone());
+    let service = new_governance_service(admin);
     let floor_fee = service!(service, get_tx_floor_fee, context.clone());
     let failure_fee = service!(service, get_tx_failure_fee, context);
 
@@ -169,7 +169,7 @@ fn mock_governance_info(admin: Address) -> GovernanceInfo {
             discount_per_million: 70,
         },
         DiscountLevel {
-            amount:               100000,
+            amount:               100_000,
             discount_per_million: 50,
         },
     ];
