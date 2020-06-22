@@ -24,6 +24,6 @@ members = [
   "services/riscv",
   "services/asset",
   "services/kyc",
-  "services/admission_control"
+  "services/admission_control",
   "services/governance"
 ]
