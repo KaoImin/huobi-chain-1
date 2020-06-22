@@ -7,7 +7,7 @@ use bytes::{Bytes, BytesMut};
 use cita_trie::MemoryDB;
 
 use asset::AssetService;
-use framework::binding::sdk::{DefalutServiceSDK, DefaultChainQuerier};
+use framework::binding::sdk::{DefaultChainQuerier, DefaultServiceSDK};
 use framework::binding::state::{GeneralServiceState, MPTTrie};
 use framework::executor::ServiceExecutor;
 use metadata::MetadataService;
@@ -67,6 +67,7 @@ fn test_update_metadata() {
         height:       1,
         timestamp:    0,
         cycles_limit: std::u64::MAX,
+        proposer:     Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap(),
     };
 
     let raw = RawTransaction {
@@ -81,6 +82,7 @@ fn test_update_metadata() {
             payload:      r#"{ "verifier_list": [{"bls_pub_key": "0xFFFFFFF9488c19458a963cc57b567adde7db8f8b6bec392d5cb7b67b0abc1ed6cd966edc451f6ac2ef38079460eb965e890d1f576e4039a20467820237cda753f07a8b8febae1ec052190973a1bcf00690ea8fc0168b3fbbccd1c4e402eda5ef22", "address": "0x016cbd9ee47a255a6f68882918dcdd9e14e6bee1", "propose_weight": 6, "vote_weight": 6}], "interval": 6, "propose_ratio": 6, "prevote_ratio": 6, "precommit_ratio": 6, "brake_ratio": 6, "timeout_gap": 20, "cycles_limit": 3000000, "cycles_price": 3000, "tx_num_limit": 20000, "max_tx_size": 500000 }"#
                 .to_owned(),
         },
+        sender: Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap(),
     };
     let stx = SignedTransaction {
         raw,
@@ -137,7 +139,7 @@ fn test_get_fee() {
 fn new_governance_service(
     admin: Address,
 ) -> GovernanceService<
-    DefalutServiceSDK<
+    DefaultServiceSDK<
         GeneralServiceState<MemoryDB>,
         DefaultChainQuerier<MockStorage>,
         NoopDispatcher,
@@ -147,7 +149,7 @@ fn new_governance_service(
     let trie = MPTTrie::new(Arc::new(MemoryDB::new(false)));
     let state = GeneralServiceState::new(trie);
 
-    let mut sdk = DefalutServiceSDK::new(
+    let mut sdk = DefaultServiceSDK::new(
         Rc::new(RefCell::new(state)),
         Rc::new(chain_db),
         NoopDispatcher {},

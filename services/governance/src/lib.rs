@@ -2,13 +2,16 @@
 mod tests;
 mod types;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use bytes::Bytes;
 use derive_more::{Display, From};
 use serde::Serialize;
 
-use binding_macro::{cycles, genesis, service, tx_hook_after};
+use binding_macro::{cycles, genesis, hook_after, service, tx_hook_after};
 use protocol::traits::{ExecutorParams, ServiceResponse, ServiceSDK, StoreMap};
-use protocol::types::{Address, Metadata, ServiceContext};
+use protocol::types::{Address, Metadata, ServiceContext, ServiceContextParams};
 
 use crate::types::{
     AccmulateProfitPayload, Asset, CalcFeePayload, DiscountLevel, GovernanceInfo,
@@ -292,6 +295,48 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
                 value:     fee,
             });
         }
+    }
+
+    #[hook_after]
+    fn hook_after_(&mut self, params: &ExecutorParams) {
+        let info: GovernanceInfo = self
+            .sdk
+            .get_value(&ADMIN_KEY.to_owned())
+            .expect("Admin should not be none");
+        let sender_address: Address = self
+            .sdk
+            .get_value(&MINER_ADDRESS_KEY.to_owned())
+            .expect("send miner fee address should not be none");
+
+        let ctx_params = ServiceContextParams {
+            tx_hash:         None,
+            nonce:           None,
+            cycles_limit:    params.cycles_limit,
+            cycles_price:    1,
+            cycles_used:     Rc::new(RefCell::new(0)),
+            caller:          sender_address.clone(),
+            height:          params.height,
+            service_name:    String::new(),
+            service_method:  String::new(),
+            service_payload: String::new(),
+            extra:           None,
+            timestamp:       params.timestamp,
+            events:          Rc::new(RefCell::new(vec![])),
+        };
+
+        let ctx = ServiceContext::new(ctx_params);
+        let asset = self
+            .get_native_asset(&ctx)
+            .expect("Can not get native asset");
+
+        let payload = TransferFromPayload {
+            asset_id:  asset.id,
+            sender:    sender_address,
+            recipient: params.proposer.clone(),
+            value:     info.miner_benefit,
+        };
+
+        let _ = self.transfer_from(&ctx, payload);
     }
 
     fn calc_discount_fee(&self, origin_fee: u64, discount_level: &[DiscountLevel]) -> u64 {
