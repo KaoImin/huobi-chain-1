@@ -149,12 +149,10 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         payload: UpdateMetadataPayload,
     ) -> ServiceResponse<()> {
         if !self.is_admin(&ctx) {
-            println!("xxxxxx");
             return ServiceError::NonAuthorized.into();
         }
 
         if let Err(err) = self.write_metadata(&ctx, payload.clone()) {
-            println!("{:?}", err);
             return err;
         }
 
@@ -247,7 +245,11 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         let new_profit = payload.accmulated_profit;
 
         if let Some(profit) = self.profits.get(&address) {
-            self.profits.insert(address, profit + new_profit);
+            if let Some(profit_sum) = profit.checked_add(new_profit) {
+                self.profits.insert(address, profit_sum);
+            } else {
+                return ServiceResponse::from_error(101, "profit overflow".to_owned());
+            }
         } else {
             self.profits.insert(address, new_profit);
         }
@@ -262,10 +264,14 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             .sdk
             .get_value(&ADMIN_KEY.to_owned())
             .expect("Admin should not be none");
-        let tmp_fee = payload.profit * info.profit_deduct_rate / MILLION;
 
-        let tmp = self.calc_discount_fee(tmp_fee, &info.tx_fee_discount);
-        ServiceResponse::from_succeed(tmp.max(info.tx_floor_fee))
+        if let Some(tmp) = payload.profit.checked_mul(info.profit_deduct_rate) {
+            if let Some(tmp_fee) = self.calc_discount_fee(tmp / MILLION, &info.tx_fee_discount) {
+                return ServiceResponse::from_succeed(tmp_fee.max(info.tx_floor_fee));
+            }
+        }
+
+        ServiceResponse::from_error(101, "fee overflow".to_owned())
     }
 
     #[tx_hook_after]
@@ -286,14 +292,20 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             .collect::<Vec<_>>();
 
         for (addr, profit) in profits.iter() {
-            let tmp_fee = profit * profit_deduct_rate / MILLION;
-            let fee = self.calc_discount_fee(tmp_fee, &info.tx_fee_discount);
-            let _ = self.transfer_from(&ctx, TransferFromPayload {
-                asset_id:  asset.id.clone(),
-                sender:    addr.clone(),
-                recipient: fee_address.clone(),
-                value:     fee,
-            });
+            let tmp_fee = if let Some(fee) = profit.checked_mul(profit_deduct_rate) {
+                fee
+            } else {
+                continue;
+            };
+
+            if let Some(fee) = self.calc_discount_fee(tmp_fee, &info.tx_fee_discount) {
+                let _ = self.transfer_from(&ctx, TransferFromPayload {
+                    asset_id:  asset.id.clone(),
+                    sender:    addr.clone(),
+                    recipient: fee_address.clone(),
+                    value:     fee.max(info.tx_floor_fee),
+                });
+            }
         }
     }
 
@@ -339,7 +351,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         let _ = self.transfer_from(&ctx, payload);
     }
 
-    fn calc_discount_fee(&self, origin_fee: u64, discount_level: &[DiscountLevel]) -> u64 {
+    fn calc_discount_fee(&self, origin_fee: u64, discount_level: &[DiscountLevel]) -> Option<u64> {
         let mut discount = HUNDRED;
         for level in discount_level.iter().rev() {
             if origin_fee >= level.amount {
@@ -348,7 +360,8 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             }
         }
 
-        origin_fee * discount / HUNDRED
+        let res = origin_fee.checked_mul(discount)?;
+        Some(res / HUNDRED)
     }
 
     fn is_admin(&self, ctx: &ServiceContext) -> bool {
@@ -470,16 +483,5 @@ impl ServiceError {
 impl<T: Default> From<ServiceError> for ServiceResponse<T> {
     fn from(err: ServiceError) -> ServiceResponse<T> {
         ServiceResponse::from_error(err.code(), err.to_string())
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use protocol::types::{Address, Bytes, Hash};
-
-    #[test]
-    fn test() {
-        let a = Hash::digest(Bytes::from(vec![0u8, 1, 2]));
-        println!("{:?}", Address::from_hash(a).unwrap());
     }
 }
