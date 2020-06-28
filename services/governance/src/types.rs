@@ -9,10 +9,10 @@ use protocol::ProtocolResult;
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug)]
 pub struct InitGenesisPayload {
-    pub info:                GovernanceInfo,
-    pub collect_fee_address: Address,
-    pub pay_miner_address:   Address,
-    pub miners:              Vec<Miner>,
+    pub info:                   GovernanceInfo,
+    pub fee_collection_address: Address,
+    pub miner_payment_address:  Address,
+    pub miners:                 Vec<Miner>,
 }
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug)]

@@ -54,9 +54,9 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         info.tx_fee_discount.sort();
         self.sdk.set_value(ADMIN_KEY.to_string(), info);
         self.sdk
-            .set_value(FEE_ADDRESS_KEY.to_string(), payload.collect_fee_address);
+            .set_value(FEE_ADDRESS_KEY.to_string(), payload.fee_collection_address);
         self.sdk
-            .set_value(MINER_ADDRESS_KEY.to_string(), payload.pay_miner_address);
+            .set_value(MINER_ADDRESS_KEY.to_string(), payload.miner_payment_address);
 
         for miner in payload.miners.into_iter() {
             self.miners.insert(miner.address, miner.miner_fee_address);
@@ -154,6 +154,10 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
     #[cycles(210_00)]
     #[write]
     fn set_miner(&mut self, ctx: ServiceContext, payload: Miner) -> ServiceResponse<()> {
+        if ctx.get_caller() != payload.address {
+            return ServiceResponse::from_error(103, "Can only set own miner address".to_owned());
+        }
+
         self.miners
             .insert(payload.address.clone(), payload.miner_fee_address.clone());
         let event = SetMinerEvent {

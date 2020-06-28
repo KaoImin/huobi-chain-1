@@ -177,6 +177,30 @@ fn test_accumulate_profit() {
     assert_eq!(service.get_fee(&addr_2), Some(18));
 }
 
+#[test]
+fn test_calc_fee() {
+    let levels = vec![
+        DiscountLevel {
+            amount:               1000,
+            discount_per_million: 90,
+        },
+        DiscountLevel {
+            amount:               10000,
+            discount_per_million: 70,
+        },
+        DiscountLevel {
+            amount:               100_000,
+            discount_per_million: 50,
+        },
+    ];
+    let admin = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let service = new_governance_service(admin);
+
+    assert_eq!(service.calc_discount_fee(100, &levels), 100);
+    assert_eq!(service.calc_discount_fee(10000, &levels), 7000);
+    assert_eq!(service.calc_discount_fee(100_000, &levels), 50000);
+}
+
 fn new_governance_service(
     admin: Address,
 ) -> GovernanceService<
