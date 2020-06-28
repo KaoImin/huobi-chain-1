@@ -9,9 +9,22 @@ use protocol::ProtocolResult;
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug)]
 pub struct InitGenesisPayload {
-    pub info:          GovernanceInfo,
-    pub fee_address:   Address,
-    pub miner_address: Address,
+    pub info:                GovernanceInfo,
+    pub collect_fee_address: Address,
+    pub pay_miner_address:   Address,
+    pub miners:              Vec<Miner>,
+}
+
+#[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug)]
+pub struct Miner {
+    pub address:           Address,
+    pub miner_fee_address: Address,
+}
+
+#[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug)]
+pub struct SetMinerEvent {
+    pub topic: String,
+    pub info:  Miner,
 }
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug, Default)]

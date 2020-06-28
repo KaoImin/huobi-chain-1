@@ -15,10 +15,10 @@ use protocol::types::{Address, Metadata, ServiceContext, ServiceContextParams};
 
 use crate::types::{
     AccmulateProfitPayload, Asset, CalcFeePayload, DiscountLevel, GovernanceInfo,
-    InitGenesisPayload, SetAdminEvent, SetAdminPayload, SetGovernInfoEvent, SetGovernInfoPayload,
-    TransferFromPayload, UpdateIntervalEvent, UpdateIntervalPayload, UpdateMetadataEvent,
-    UpdateMetadataPayload, UpdateRatioEvent, UpdateRatioPayload, UpdateValidatorsEvent,
-    UpdateValidatorsPayload,
+    InitGenesisPayload, Miner, SetAdminEvent, SetAdminPayload, SetGovernInfoEvent,
+    SetGovernInfoPayload, SetMinerEvent, TransferFromPayload, UpdateIntervalEvent,
+    UpdateIntervalPayload, UpdateMetadataEvent, UpdateMetadataPayload, UpdateRatioEvent,
+    UpdateRatioPayload, UpdateValidatorsEvent, UpdateValidatorsPayload,
 };
 
 const ADMIN_KEY: &str = "admin";
@@ -31,13 +31,19 @@ static ADMISSION_TOKEN: Bytes = Bytes::from_static(b"governance");
 pub struct GovernanceService<SDK> {
     sdk:     SDK,
     profits: Box<dyn StoreMap<Address, u64>>,
+    miners:  Box<dyn StoreMap<Address, Address>>,
 }
 
 #[service]
 impl<SDK: ServiceSDK> GovernanceService<SDK> {
     pub fn new(mut sdk: SDK) -> Self {
         let profits: Box<dyn StoreMap<Address, u64>> = sdk.alloc_or_recover_map("profit");
-        Self { sdk, profits }
+        let miners: Box<dyn StoreMap<Address, Address>> = sdk.alloc_or_recover_map("miner_address");
+        Self {
+            sdk,
+            profits,
+            miners,
+        }
     }
 
     #[genesis]
@@ -48,9 +54,13 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         info.tx_fee_discount.sort();
         self.sdk.set_value(ADMIN_KEY.to_string(), info);
         self.sdk
-            .set_value(FEE_ADDRESS_KEY.to_string(), payload.fee_address);
+            .set_value(FEE_ADDRESS_KEY.to_string(), payload.collect_fee_address);
         self.sdk
-            .set_value(MINER_ADDRESS_KEY.to_string(), payload.miner_address);
+            .set_value(MINER_ADDRESS_KEY.to_string(), payload.pay_miner_address);
+
+        for miner in payload.miners.into_iter() {
+            self.miners.insert(miner.address, miner.miner_fee_address);
+        }
     }
 
     #[cycles(210_00)]
@@ -137,6 +147,18 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         let event = SetGovernInfoEvent {
             topic: "Set New Govern Info".to_owned(),
             info,
+        };
+        Self::emit_event(&ctx, event)
+    }
+
+    #[cycles(210_00)]
+    #[write]
+    fn set_miner(&mut self, ctx: ServiceContext, payload: Miner) -> ServiceResponse<()> {
+        self.miners
+            .insert(payload.address.clone(), payload.miner_fee_address.clone());
+        let event = SetMinerEvent {
+            topic: "Set New Miner Info".to_owned(),
+            info:  payload,
         };
         Self::emit_event(&ctx, event)
     }
@@ -265,13 +287,14 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             .get_value(&ADMIN_KEY.to_owned())
             .expect("Admin should not be none");
 
-        if let Some(tmp) = payload.profit.checked_mul(info.profit_deduct_rate) {
-            if let Some(tmp_fee) = self.calc_discount_fee(tmp / MILLION, &info.tx_fee_discount) {
-                return ServiceResponse::from_succeed(tmp_fee.max(info.tx_floor_fee));
-            }
-        }
+        let fee = if let Some(tmp) = payload.profit.checked_mul(info.profit_deduct_rate) {
+            self.calc_discount_fee(tmp / MILLION, &info.tx_fee_discount)
+        } else {
+            let tmp = payload.profit / MILLION * info.profit_deduct_rate;
+            self.calc_discount_fee(tmp, &info.tx_fee_discount)
+        };
 
-        ServiceResponse::from_error(101, "fee overflow".to_owned())
+        ServiceResponse::from_succeed(fee.max(info.tx_floor_fee))
     }
 
     #[tx_hook_after]
@@ -292,20 +315,20 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             .collect::<Vec<_>>();
 
         for (addr, profit) in profits.iter() {
-            let tmp_fee = if let Some(fee) = profit.checked_mul(profit_deduct_rate) {
-                fee
+            let tmp_fee = if let Some(tmp) = profit.checked_mul(profit_deduct_rate) {
+                tmp / MILLION
             } else {
-                continue;
+                *profit / MILLION * profit_deduct_rate
             };
 
-            if let Some(fee) = self.calc_discount_fee(tmp_fee, &info.tx_fee_discount) {
-                let _ = self.transfer_from(&ctx, TransferFromPayload {
-                    asset_id:  asset.id.clone(),
-                    sender:    addr.clone(),
-                    recipient: fee_address.clone(),
-                    value:     fee.max(info.tx_floor_fee),
-                });
-            }
+            let fee = self.calc_discount_fee(tmp_fee, &info.tx_fee_discount);
+            let _ = self.transfer_from(&ctx, TransferFromPayload {
+                asset_id:  asset.id.clone(),
+                sender:    addr.clone(),
+                recipient: fee_address.clone(),
+                value:     fee.max(info.tx_floor_fee),
+            });
+            self.profits.insert(addr.clone(), 0);
         }
     }
 
@@ -341,17 +364,23 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             .get_native_asset(&ctx)
             .expect("Can not get native asset");
 
+        let recipient_addr = if let Some(addr) = self.miners.get(&params.proposer) {
+            addr
+        } else {
+            params.proposer.clone()
+        };
+
         let payload = TransferFromPayload {
             asset_id:  asset.id,
             sender:    sender_address,
-            recipient: params.proposer.clone(),
+            recipient: recipient_addr,
             value:     info.miner_benefit,
         };
 
         let _ = self.transfer_from(&ctx, payload);
     }
 
-    fn calc_discount_fee(&self, origin_fee: u64, discount_level: &[DiscountLevel]) -> Option<u64> {
+    fn calc_discount_fee(&self, origin_fee: u64, discount_level: &[DiscountLevel]) -> u64 {
         let mut discount = HUNDRED;
         for level in discount_level.iter().rev() {
             if origin_fee >= level.amount {
@@ -360,8 +389,11 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             }
         }
 
-        let res = origin_fee.checked_mul(discount)?;
-        Some(res / HUNDRED)
+        if let Some(res) = origin_fee.checked_mul(discount) {
+            res / HUNDRED
+        } else {
+            origin_fee / HUNDRED * discount
+        }
     }
 
     fn is_admin(&self, ctx: &ServiceContext) -> bool {
@@ -475,12 +507,14 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
             return None;
         };
 
-        if let Some(tmp) = profit.checked_mul(info.profit_deduct_rate) {
-            if let Some(tmp_fee) = self.calc_discount_fee(tmp / MILLION, &info.tx_fee_discount) {
-                return Some(tmp_fee.max(info.tx_floor_fee));
-            }
-        }
-        None
+        let fee = if let Some(tmp) = profit.checked_mul(info.profit_deduct_rate) {
+            self.calc_discount_fee(tmp / MILLION, &info.tx_fee_discount)
+        } else {
+            let tmp = profit / MILLION * info.profit_deduct_rate;
+            self.calc_discount_fee(tmp, &info.tx_fee_discount)
+        };
+
+        Some(fee.max(info.tx_floor_fee))
     }
 }
 
