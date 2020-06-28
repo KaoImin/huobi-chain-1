@@ -3497,7 +3497,7 @@ dependencies = [
  "byteorder",
  "cita_trie",
  "ckb-vm",
- "core-storage",
+ "core-storage 0.1.0-alpha.0 (git+https://github.com/nervosnetwork/muta?rev=f8f16cd)",
  "derive_more 0.99.7",
  "env_logger",
  "framework 0.1.0-alpha.0 (git+https://github.com/nervosnetwork/muta?rev=f8f16cd)",
