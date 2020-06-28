@@ -203,8 +203,8 @@ impl From<UpdateRatioPayload> for UpdateRatioEvent {
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct AccmulateProfitPayload {
-    pub address:           Address,
-    pub accmulated_profit: u64,
+    pub address:            Address,
+    pub accumulated_profit: u64,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]

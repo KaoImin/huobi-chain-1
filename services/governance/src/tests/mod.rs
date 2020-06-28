@@ -20,7 +20,7 @@ use protocol::types::{
 };
 use protocol::ProtocolResult;
 
-use crate::types::{DiscountLevel, GovernanceInfo, SetAdminPayload};
+use crate::types::{AccmulateProfitPayload, DiscountLevel, GovernanceInfo, SetAdminPayload};
 use crate::{GovernanceService, ADMIN_KEY};
 
 macro_rules! service {
@@ -134,6 +134,47 @@ fn test_get_fee() {
 
     assert_eq!(floor_fee, 10);
     assert_eq!(failure_fee, 20);
+}
+
+#[test]
+fn test_accumulate_profit() {
+    let addr_1 = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let addr_2 = Address::from_hex("0xf8389d774afdad8755ef8e629e5a154fddc6325a").unwrap();
+    let admin = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let cycles_limit = 1024 * 1024 * 1024; // 1073741824
+    let context = mock_context(cycles_limit, admin.clone());
+
+    let mut service = new_governance_service(admin);
+    service!(
+        service,
+        accumulate_profit,
+        context.clone(),
+        AccmulateProfitPayload {
+            address:            addr_1.clone(),
+            accumulated_profit: 1,
+        }
+    );
+    service!(
+        service,
+        accumulate_profit,
+        context.clone(),
+        AccmulateProfitPayload {
+            address:            addr_2.clone(),
+            accumulated_profit: 1_000_000,
+        }
+    );
+    service!(
+        service,
+        accumulate_profit,
+        context,
+        AccmulateProfitPayload {
+            address:            addr_2.clone(),
+            accumulated_profit: 5_000_000,
+        }
+    );
+
+    assert_eq!(service.get_fee(&addr_1), Some(10));
+    assert_eq!(service.get_fee(&addr_2), Some(18));
 }
 
 fn new_governance_service(

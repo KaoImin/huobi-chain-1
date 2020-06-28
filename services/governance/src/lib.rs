@@ -242,7 +242,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         payload: AccmulateProfitPayload,
     ) -> ServiceResponse<()> {
         let address = payload.address;
-        let new_profit = payload.accmulated_profit;
+        let new_profit = payload.accumulated_profit;
 
         if let Some(profit) = self.profits.get(&address) {
             if let Some(profit_sum) = profit.checked_add(new_profit) {
@@ -460,6 +460,27 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
                 ServiceResponse::from_succeed(())
             }
         }
+    }
+
+    #[cfg(test)]
+    pub fn get_fee(&self, address: &Address) -> Option<u64> {
+        let info: GovernanceInfo = self
+            .sdk
+            .get_value(&ADMIN_KEY.to_owned())
+            .expect("Admin should not be none");
+
+        let profit = if let Some(tmp) = self.profits.get(address) {
+            tmp
+        } else {
+            return None;
+        };
+
+        if let Some(tmp) = profit.checked_mul(info.profit_deduct_rate) {
+            if let Some(tmp_fee) = self.calc_discount_fee(tmp / MILLION, &info.tx_fee_discount) {
+                return Some(tmp_fee.max(info.tx_floor_fee));
+            }
+        }
+        None
     }
 }
 
