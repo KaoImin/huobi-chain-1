@@ -9,49 +9,49 @@ use protocol::ProtocolResult;
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug)]
 pub struct InitGenesisPayload {
-    pub info:                   GovernanceInfo,
-    pub fee_collection_address: Address,
-    pub miner_payment_address:  Address,
-    pub miners:                 Vec<Miner>,
+    pub info: GovernanceInfo,
+    pub tx_fee_inlet_address: Address,
+    pub miner_profit_outlet_address: Address,
+    pub miner_charge_map: Vec<MinerChargeConfig>,
 }
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug)]
-pub struct Miner {
-    pub address:           Address,
-    pub miner_fee_address: Address,
+pub struct MinerChargeConfig {
+    pub address:              Address,
+    pub miner_charge_address: Address,
 }
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug)]
 pub struct SetMinerEvent {
     pub topic: String,
-    pub info:  Miner,
+    pub info:  MinerChargeConfig,
 }
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug, Default)]
 pub struct GovernanceInfo {
-    pub admin:              Address,
-    pub tx_failure_fee:     u64,
-    pub tx_floor_fee:       u64,
-    pub profit_deduct_rate: u64,
-    pub tx_fee_discount:    Vec<DiscountLevel>,
-    pub miner_benefit:      u64,
+    pub admin: Address,
+    pub tx_failure_fee: u64,
+    pub tx_floor_fee: u64,
+    pub profit_deduct_rate_per_million: u64,
+    pub tx_fee_discount: Vec<DiscountLevel>,
+    pub miner_benefit: u64,
 }
 
 #[derive(RlpFixedCodec, Deserialize, Serialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct DiscountLevel {
-    pub amount:               u64,
-    pub discount_per_million: u64,
+    pub threshold:        u64,
+    pub discount_percent: u64,
 }
 
 impl PartialOrd for DiscountLevel {
     fn partial_cmp(&self, other: &DiscountLevel) -> Option<Ordering> {
-        self.amount.partial_cmp(&other.amount)
+        self.threshold.partial_cmp(&other.threshold)
     }
 }
 
 impl Ord for DiscountLevel {
     fn cmp(&self, other: &DiscountLevel) -> Ordering {
-        self.amount.cmp(&other.amount)
+        self.threshold.cmp(&other.threshold)
     }
 }
 
@@ -75,6 +75,12 @@ pub struct SetAdminEvent {
 pub struct SetGovernInfoEvent {
     pub topic: String,
     pub info:  GovernanceInfo,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct RecordProfitEvent {
+    pub owner:  Address,
+    pub amount: u64,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -221,11 +227,6 @@ pub struct AccmulateProfitPayload {
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct CalcFeePayload {
-    pub profit: u64,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct TransferFromPayload {
     pub asset_id:  Hash,
     pub sender:    Address,
@@ -241,4 +242,17 @@ pub struct Asset {
     pub supply:    u64,
     pub precision: u64,
     pub issuer:    Address,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct GetBalancePayload {
+    pub asset_id: Hash,
+    pub user:     Address,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, Default)]
+pub struct GetBalanceResponse {
+    pub asset_id: Hash,
+    pub user:     Address,
+    pub balance:  u64,
 }

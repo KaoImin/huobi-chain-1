@@ -52,25 +52,25 @@ payload = '''
         "admin": "0xf8389d774afdad8755ef8e629e5a154fddc6325a",
         "tx_failure_fee": 10,
         "tx_floor_fee": 10,
-        "profit_deduct_rate": 3,
+        "profit_deduct_rate_per_million": 3,
         "tx_fee_discount": [
             {
-                "amount": 1000,
-                "discount_per_million": 90
+                "threshold": 1000,
+                "discount_percent": 90
             },
             {
-                "amount": 10000,
-                "discount_per_million": 70
+                "threshold": 10000,
+                "discount_percent": 70
             },
             {
-                "amount": 100000,
-                "discount_per_million": 50
+                "threshold": 100000,
+                "discount_percent": 50
             }
         ],
         "miner_benefit": 10
     },
-    "fee_collection_address": "0x503492f4bddc731a72b8caa806183f921c284f8e",
-    "miner_payment_address": "0xf84a97f1f0a956e738abd85c2e0a5026f8874e3e",
-    "miners": []
+    "tx_fee_inlet_address": "0x503492f4bddc731a72b8caa806183f921c284f8e",
+    "miner_profit_outlet_address": "0xf84a97f1f0a956e738abd85c2e0a5026f8874e3e",
+    "miner_charge_map": []
 }
 '''

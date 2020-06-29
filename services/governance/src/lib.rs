@@ -14,16 +14,20 @@ use protocol::traits::{ExecutorParams, ServiceResponse, ServiceSDK, StoreMap};
 use protocol::types::{Address, Metadata, ServiceContext, ServiceContextParams};
 
 use crate::types::{
-    AccmulateProfitPayload, Asset, CalcFeePayload, DiscountLevel, GovernanceInfo,
-    InitGenesisPayload, Miner, SetAdminEvent, SetAdminPayload, SetGovernInfoEvent,
+    AccmulateProfitPayload, Asset, DiscountLevel, GovernanceInfo, InitGenesisPayload,
+    MinerChargeConfig, RecordProfitEvent, SetAdminEvent, SetAdminPayload, SetGovernInfoEvent,
     SetGovernInfoPayload, SetMinerEvent, TransferFromPayload, UpdateIntervalEvent,
     UpdateIntervalPayload, UpdateMetadataEvent, UpdateMetadataPayload, UpdateRatioEvent,
     UpdateRatioPayload, UpdateValidatorsEvent, UpdateValidatorsPayload,
 };
+use std::convert::{From, TryInto};
 
-const ADMIN_KEY: &str = "admin";
-const FEE_ADDRESS_KEY: &str = "fee_addrss";
-const MINER_ADDRESS_KEY: &str = "miner_address";
+#[cfg(not(test))]
+use crate::types::{GetBalancePayload, GetBalanceResponse};
+
+const INFO_KEY: &str = "admin";
+const TX_FEE_INLET_KEY: &str = "fee_address";
+const MINER_PROFIT_OUTLET_KEY: &str = "miner_address";
 const MILLION: u64 = 1_000_000;
 const HUNDRED: u64 = 100;
 static ADMISSION_TOKEN: Bytes = Bytes::from_static(b"governance");
@@ -52,14 +56,17 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
 
         let mut info = payload.info;
         info.tx_fee_discount.sort();
-        self.sdk.set_value(ADMIN_KEY.to_string(), info);
+        self.sdk.set_value(INFO_KEY.to_string(), info);
         self.sdk
-            .set_value(FEE_ADDRESS_KEY.to_string(), payload.fee_collection_address);
-        self.sdk
-            .set_value(MINER_ADDRESS_KEY.to_string(), payload.miner_payment_address);
+            .set_value(TX_FEE_INLET_KEY.to_string(), payload.tx_fee_inlet_address);
+        self.sdk.set_value(
+            MINER_PROFIT_OUTLET_KEY.to_string(),
+            payload.miner_profit_outlet_address,
+        );
 
-        for miner in payload.miners.into_iter() {
-            self.miners.insert(miner.address, miner.miner_fee_address);
+        for miner in payload.miner_charge_map.into_iter() {
+            self.miners
+                .insert(miner.address, miner.miner_charge_address);
         }
     }
 
@@ -68,7 +75,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
     fn get_admin_address(&self, ctx: ServiceContext) -> ServiceResponse<Address> {
         let info: GovernanceInfo = self
             .sdk
-            .get_value(&ADMIN_KEY.to_owned())
+            .get_value(&INFO_KEY.to_owned())
             .expect("Admin should not be none");
 
         ServiceResponse::from_succeed(info.admin)
@@ -79,7 +86,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
     fn get_govern_info(&self, ctx: ServiceContext) -> ServiceResponse<GovernanceInfo> {
         let info: GovernanceInfo = self
             .sdk
-            .get_value(&ADMIN_KEY.to_owned())
+            .get_value(&INFO_KEY.to_owned())
             .expect("Admin should not be none");
 
         ServiceResponse::from_succeed(info)
@@ -90,7 +97,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
     fn get_tx_failure_fee(&self, ctx: ServiceContext) -> ServiceResponse<u64> {
         let info: GovernanceInfo = self
             .sdk
-            .get_value(&ADMIN_KEY.to_owned())
+            .get_value(&INFO_KEY.to_owned())
             .expect("Admin should not be none");
 
         ServiceResponse::from_succeed(info.tx_failure_fee)
@@ -101,7 +108,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
     fn get_tx_floor_fee(&self, ctx: ServiceContext) -> ServiceResponse<u64> {
         let info: GovernanceInfo = self
             .sdk
-            .get_value(&ADMIN_KEY.to_owned())
+            .get_value(&INFO_KEY.to_owned())
             .expect("Admin should not be none");
 
         ServiceResponse::from_succeed(info.tx_floor_fee)
@@ -116,11 +123,11 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
 
         let mut info: GovernanceInfo = self
             .sdk
-            .get_value(&ADMIN_KEY.to_owned())
+            .get_value(&INFO_KEY.to_owned())
             .expect("Admin should not be none");
         info.admin = payload.admin.clone();
 
-        self.sdk.set_value(ADMIN_KEY.to_owned(), info);
+        self.sdk.set_value(INFO_KEY.to_owned(), info);
 
         let event = SetAdminEvent {
             topic: "Set New Admin".to_owned(),
@@ -142,7 +149,7 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
 
         let mut info = payload.inner;
         info.tx_fee_discount.sort();
-        self.sdk.set_value(ADMIN_KEY.to_owned(), info.clone());
+        self.sdk.set_value(INFO_KEY.to_owned(), info.clone());
 
         let event = SetGovernInfoEvent {
             topic: "Set New Govern Info".to_owned(),
@@ -153,13 +160,19 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
 
     #[cycles(210_00)]
     #[write]
-    fn set_miner(&mut self, ctx: ServiceContext, payload: Miner) -> ServiceResponse<()> {
+    fn set_miner(
+        &mut self,
+        ctx: ServiceContext,
+        payload: MinerChargeConfig,
+    ) -> ServiceResponse<()> {
         if ctx.get_caller() != payload.address {
             return ServiceResponse::from_error(103, "Can only set own miner address".to_owned());
         }
 
-        self.miners
-            .insert(payload.address.clone(), payload.miner_fee_address.clone());
+        self.miners.insert(
+            payload.address.clone(),
+            payload.miner_charge_address.clone(),
+        );
         let event = SetMinerEvent {
             topic: "Set New Miner Info".to_owned(),
             info:  payload,
@@ -272,79 +285,67 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
 
         if let Some(profit) = self.profits.get(&address) {
             if let Some(profit_sum) = profit.checked_add(new_profit) {
-                self.profits.insert(address, profit_sum);
+                self.profits.insert(address.clone(), profit_sum);
             } else {
                 return ServiceResponse::from_error(101, "profit overflow".to_owned());
             }
         } else {
-            self.profits.insert(address, new_profit);
+            self.profits.insert(address.clone(), new_profit);
         }
+
+        Self::emit_event(&ctx, RecordProfitEvent {
+            owner:  address,
+            amount: new_profit,
+        });
 
         ServiceResponse::from_succeed(())
     }
 
-    #[cycles(210_00)]
-    #[read]
-    fn calc_tx_fee(&self, ctx: ServiceContext, payload: CalcFeePayload) -> ServiceResponse<u64> {
-        let info: GovernanceInfo = self
-            .sdk
-            .get_value(&ADMIN_KEY.to_owned())
-            .expect("Admin should not be none");
-
-        let fee = if let Some(tmp) = payload.profit.checked_mul(info.profit_deduct_rate) {
-            self.calc_discount_fee(tmp / MILLION, &info.tx_fee_discount)
-        } else {
-            let tmp = payload.profit / MILLION * info.profit_deduct_rate;
-            self.calc_discount_fee(tmp, &info.tx_fee_discount)
-        };
-
-        ServiceResponse::from_succeed(fee.max(info.tx_floor_fee))
-    }
-
-    #[tx_hook_after]
-    fn tx_hook_after_(&mut self, ctx: ServiceContext) {
-        let info: GovernanceInfo = self
-            .sdk
-            .get_value(&ADMIN_KEY.to_owned())
-            .expect("Admin should not be none");
-        let fee_address: Address = self.sdk.get_value(&FEE_ADDRESS_KEY.to_owned()).unwrap();
-        let profit_deduct_rate = info.profit_deduct_rate;
-        let asset = self
-            .get_native_asset(&ctx)
-            .expect("Can not get native asset");
+    fn calc_profit_records(&mut self, _ctx: &ServiceContext) -> u64 {
         let profits = self
             .profits
             .iter()
             .map(|i| (i.0.clone(), i.1))
             .collect::<Vec<_>>();
 
-        for (addr, profit) in profits.iter() {
-            let tmp_fee = if let Some(tmp) = profit.checked_mul(profit_deduct_rate) {
-                tmp / MILLION
-            } else {
-                *profit / MILLION * profit_deduct_rate
-            };
+        let mut profit_sum = 0u64;
 
-            let fee = self.calc_discount_fee(tmp_fee, &info.tx_fee_discount);
-            let _ = self.transfer_from(&ctx, TransferFromPayload {
-                asset_id:  asset.id.clone(),
-                sender:    addr.clone(),
-                recipient: fee_address.clone(),
-                value:     fee.max(info.tx_floor_fee),
-            });
-            self.profits.insert(addr.clone(), 0);
+        for (owner, profit) in profits.iter() {
+            profit_sum = profit_sum.checked_add(profit.to_owned()).unwrap();
+            self.profits.insert(owner.clone(), 0);
         }
+
+        profit_sum
+    }
+
+    #[tx_hook_after]
+    fn handle_tx_fee(&mut self, ctx: ServiceContext) {
+        let asset = self
+            .get_native_asset(&ctx)
+            .expect("Can not get native asset");
+
+        let tx_fee = self.calc_tx_fee(&ctx);
+
+        let tx_fee_inlet_address: Address =
+            self.sdk.get_value(&TX_FEE_INLET_KEY.to_owned()).unwrap();
+
+        let _ = self.transfer_from(&ctx, TransferFromPayload {
+            asset_id:  asset.id,
+            sender:    ctx.get_caller(),
+            recipient: tx_fee_inlet_address,
+            value:     tx_fee,
+        });
     }
 
     #[hook_after]
-    fn hook_after_(&mut self, params: &ExecutorParams) {
+    fn handle_miner_profit(&mut self, params: &ExecutorParams) {
         let info: GovernanceInfo = self
             .sdk
-            .get_value(&ADMIN_KEY.to_owned())
+            .get_value(&INFO_KEY.to_owned())
             .expect("Admin should not be none");
         let sender_address: Address = self
             .sdk
-            .get_value(&MINER_ADDRESS_KEY.to_owned())
+            .get_value(&MINER_PROFIT_OUTLET_KEY.to_owned())
             .expect("send miner fee address should not be none");
 
         let ctx_params = ServiceContextParams {
@@ -384,27 +385,82 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
         let _ = self.transfer_from(&ctx, payload);
     }
 
-    fn calc_discount_fee(&self, origin_fee: u64, discount_level: &[DiscountLevel]) -> u64 {
+    fn calc_tx_fee(&mut self, ctx: &ServiceContext) -> u64 {
+        let profit = self.calc_profit_records(ctx);
+
+        let info: GovernanceInfo = self
+            .sdk
+            .get_value(&INFO_KEY.to_owned())
+            .expect("Admin should not be none");
+
+        let fee: u64 = (profit as u128 * info.profit_deduct_rate_per_million as u128
+            / MILLION as u128)
+            .try_into()
+            .unwrap_or_else(|err| panic!(err));
+
+        let fee = self.calc_discount_fee(ctx, fee, &info.tx_fee_discount);
+
+        fee.max(info.tx_floor_fee)
+    }
+
+    fn calc_discount_fee(
+        &self,
+        ctx: &ServiceContext,
+        origin_fee: u64,
+        discount_level: &[DiscountLevel],
+    ) -> u64 {
         let mut discount = HUNDRED;
+
+        let balance = self.get_balance(ctx);
+
         for level in discount_level.iter().rev() {
-            if origin_fee >= level.amount {
-                discount = level.discount_per_million;
+            if balance >= level.threshold {
+                discount = level.discount_percent;
                 break;
             }
         }
 
-        if let Some(res) = origin_fee.checked_mul(discount) {
-            res / HUNDRED
-        } else {
-            origin_fee / HUNDRED * discount
+        let fee: u64 = (origin_fee as u128 * discount as u128 / HUNDRED as u128)
+            .try_into()
+            .unwrap_or_else(|err| panic!(err));
+        fee
+    }
+
+    #[cfg(not(test))]
+    fn get_balance(&self, ctx: &ServiceContext) -> u64 {
+        let asset = self
+            .get_native_asset(ctx)
+            .expect("Can not get native asset");
+
+        let payload = GetBalancePayload {
+            asset_id: asset.id,
+            user:     ctx.get_caller(),
+        };
+        let payload = serde_json::to_string(&payload)
+            .expect("Can not marshall GetBalancePayload in calc_discount_fee");
+
+        let resp = self.sdk.read(
+            &ctx,
+            Some(ADMISSION_TOKEN.clone()),
+            "asset",
+            "get_balance",
+            payload.as_str(),
+        );
+
+        if resp.is_error() {
+            panic!("query balance fails")
         }
+
+        let balance = serde_json::from_str::<GetBalanceResponse>(resp.succeed_data.as_str())
+            .expect("Can not unmarshall GetBalancePayload in calc_discount_fee");
+        balance.balance
     }
 
     fn is_admin(&self, ctx: &ServiceContext) -> bool {
         let caller = ctx.get_caller();
         let info: GovernanceInfo = self
             .sdk
-            .get_value(&ADMIN_KEY.to_string())
+            .get_value(&INFO_KEY.to_string())
             .expect("Admin should not be none");
 
         info.admin == caller
@@ -499,26 +555,8 @@ impl<SDK: ServiceSDK> GovernanceService<SDK> {
     }
 
     #[cfg(test)]
-    pub fn get_fee(&self, address: &Address) -> Option<u64> {
-        let info: GovernanceInfo = self
-            .sdk
-            .get_value(&ADMIN_KEY.to_owned())
-            .expect("Admin should not be none");
-
-        let profit = if let Some(tmp) = self.profits.get(address) {
-            tmp
-        } else {
-            return None;
-        };
-
-        let fee = if let Some(tmp) = profit.checked_mul(info.profit_deduct_rate) {
-            self.calc_discount_fee(tmp / MILLION, &info.tx_fee_discount)
-        } else {
-            let tmp = profit / MILLION * info.profit_deduct_rate;
-            self.calc_discount_fee(tmp, &info.tx_fee_discount)
-        };
-
-        Some(fee.max(info.tx_floor_fee))
+    fn get_balance(&self, _ctx: &ServiceContext) -> u64 {
+        100_000
     }
 }
 

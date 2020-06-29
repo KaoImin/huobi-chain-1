@@ -21,7 +21,7 @@ use protocol::types::{
 use protocol::ProtocolResult;
 
 use crate::types::{AccmulateProfitPayload, DiscountLevel, GovernanceInfo, SetAdminPayload};
-use crate::{GovernanceService, ADMIN_KEY};
+use crate::{GovernanceService, INFO_KEY};
 
 macro_rules! service {
     ($service:expr, $method:ident, $ctx:expr) => {{
@@ -150,7 +150,7 @@ fn test_accumulate_profit() {
         accumulate_profit,
         context.clone(),
         AccmulateProfitPayload {
-            address:            addr_1.clone(),
+            address:            addr_1,
             accumulated_profit: 1,
         }
     );
@@ -166,39 +166,94 @@ fn test_accumulate_profit() {
     service!(
         service,
         accumulate_profit,
-        context,
+        context.clone(),
         AccmulateProfitPayload {
-            address:            addr_2.clone(),
+            address:            addr_2,
             accumulated_profit: 5_000_000,
         }
     );
 
-    assert_eq!(service.get_fee(&addr_1), Some(10));
-    assert_eq!(service.get_fee(&addr_2), Some(18));
+    assert_eq!(service.calc_profit_records(&context), 6_000_001);
 }
 
 #[test]
-fn test_calc_fee() {
-    let levels = vec![
-        DiscountLevel {
-            amount:               1000,
-            discount_per_million: 90,
-        },
-        DiscountLevel {
-            amount:               10000,
-            discount_per_million: 70,
-        },
-        DiscountLevel {
-            amount:               100_000,
-            discount_per_million: 50,
-        },
-    ];
+fn test_calc_fee_above_floor_fee() {
+    let addr_1 = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let addr_2 = Address::from_hex("0xf8389d774afdad8755ef8e629e5a154fddc6325a").unwrap();
     let admin = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
-    let service = new_governance_service(admin);
+    let cycles_limit = 1024 * 1024 * 1024; // 1073741824
+    let context = mock_context(cycles_limit, admin);
 
-    assert_eq!(service.calc_discount_fee(100, &levels), 100);
-    assert_eq!(service.calc_discount_fee(10000, &levels), 7000);
-    assert_eq!(service.calc_discount_fee(100_000, &levels), 50000);
+    let admin = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let mut service = new_governance_service(admin);
+
+    service!(
+        service,
+        accumulate_profit,
+        context.clone(),
+        AccmulateProfitPayload {
+            address:            addr_1,
+            accumulated_profit: 5_000_000,
+        }
+    );
+    service!(
+        service,
+        accumulate_profit,
+        context.clone(),
+        AccmulateProfitPayload {
+            address:            addr_2,
+            accumulated_profit: 10_000_000,
+        }
+    );
+
+    // total profit =5m+10m=15m
+    // fee = 15m *3%% = 45
+    // mocked balance 100_000
+    // discount 50 percent
+    // 45 * 50% = 22
+    // floor fee 10
+    // max(27,10) = 22
+    assert_eq!(service.calc_tx_fee(&context), 22);
+}
+
+#[test]
+fn test_calc_fee_below_floor_fee() {
+    let addr_1 = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let addr_2 = Address::from_hex("0xf8389d774afdad8755ef8e629e5a154fddc6325a").unwrap();
+    let admin = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let cycles_limit = 1024 * 1024 * 1024; // 1073741824
+    let context = mock_context(cycles_limit, admin);
+
+    let admin = Address::from_hex("0x755cdba6ae4f479f7164792b318b2a06c759833b").unwrap();
+    let mut service = new_governance_service(admin);
+
+    service!(
+        service,
+        accumulate_profit,
+        context.clone(),
+        AccmulateProfitPayload {
+            address:            addr_1,
+            accumulated_profit: 1_000_000,
+        }
+    );
+    service!(
+        service,
+        accumulate_profit,
+        context.clone(),
+        AccmulateProfitPayload {
+            address:            addr_2,
+            accumulated_profit: 2_000_000,
+        }
+    );
+
+    // total profit =1m+2m=3m
+    // fee = 3m *3%% = 9
+    // mocked balance 100_000
+    // discount 50 percent
+    // 9 * 50% = 4
+    // floor fee 10
+    // max(4,10) = 10
+    assert_eq!(service.calc_tx_fee(&context), 10);
 }
 
 fn new_governance_service(
@@ -220,7 +275,7 @@ fn new_governance_service(
         NoopDispatcher {},
     );
 
-    sdk.set_value(ADMIN_KEY.to_string(), mock_governance_info(admin));
+    sdk.set_value(INFO_KEY.to_string(), mock_governance_info(admin));
 
     GovernanceService::new(sdk)
 }
@@ -228,16 +283,16 @@ fn new_governance_service(
 fn mock_governance_info(admin: Address) -> GovernanceInfo {
     let levels = vec![
         DiscountLevel {
-            amount:               1000,
-            discount_per_million: 90,
+            threshold:        1000,
+            discount_percent: 90,
         },
         DiscountLevel {
-            amount:               10000,
-            discount_per_million: 70,
+            threshold:        10000,
+            discount_percent: 70,
         },
         DiscountLevel {
-            amount:               100_000,
-            discount_per_million: 50,
+            threshold:        100_000,
+            discount_percent: 50,
         },
     ];
 
@@ -245,7 +300,7 @@ fn mock_governance_info(admin: Address) -> GovernanceInfo {
         admin,
         tx_failure_fee: 20,
         tx_floor_fee: 10,
-        profit_deduct_rate: 3,
+        profit_deduct_rate_per_million: 3,
         miner_benefit: 20,
         tx_fee_discount: levels,
     }
