@@ -69,8 +69,8 @@ payload = '''
         ],
         "miner_benefit": 10
     },
-    "collect_fee_address": "0x503492f4bddc731a72b8caa806183f921c284f8e",
-    "pay_miner_address": "0xf84a97f1f0a956e738abd85c2e0a5026f8874e3e",
+    "fee_collection_address": "0x503492f4bddc731a72b8caa806183f921c284f8e",
+    "miner_payment_address": "0xf84a97f1f0a956e738abd85c2e0a5026f8874e3e",
     "miners": []
 }
 '''
