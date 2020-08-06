@@ -1,28 +1,22 @@
-use admission_control::AdmissionControl;
+// use admission_control::AdmissionControl;
 use binding_macro::{cycles, service};
 use protocol::traits::{ExecutorParams, ServiceResponse, ServiceSDK};
 use protocol::types::{ServiceContext, SignedTransaction};
 
 use multi_signature::MultiSignatureService;
 
-pub struct AuthorizationService<AC, SDK> {
-    _sdk:              SDK,
-    multi_sig:         MultiSignatureService<SDK>,
-    admission_control: AC,
+pub struct AuthorizationService<SDK> {
+    _sdk:      SDK,
+    multi_sig: MultiSignatureService<SDK>,
 }
 
 #[service]
-impl<AC, SDK> AuthorizationService<AC, SDK>
+impl<SDK> AuthorizationService<SDK>
 where
-    AC: AdmissionControl,
     SDK: ServiceSDK,
 {
-    pub fn new(_sdk: SDK, multi_sig: MultiSignatureService<SDK>, admission_control: AC) -> Self {
-        Self {
-            _sdk,
-            multi_sig,
-            admission_control,
-        }
+    pub fn new(_sdk: SDK, multi_sig: MultiSignatureService<SDK>) -> Self {
+        Self { _sdk, multi_sig }
     }
 
     #[cycles(21_000)]
@@ -32,9 +26,7 @@ where
         ctx: ServiceContext,
         payload: SignedTransaction,
     ) -> ServiceResponse<()> {
-        let resp = self
-            .multi_sig
-            .verify_signature(ctx.clone(), payload.clone());
+        let resp = self.multi_sig.verify_signature(ctx, payload);
         if resp.is_error() {
             return ServiceResponse::<()>::from_error(
                 102,
@@ -42,13 +34,6 @@ where
                     "verify transaction signature error {:?}",
                     resp.error_message
                 ),
-            );
-        }
-
-        if !self.admission_control.is_allowed(&ctx, payload) {
-            return ServiceResponse::<()>::from_error(
-                102,
-                "The transaction is not allowed".to_owned(),
             );
         }
 

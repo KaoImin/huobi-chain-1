@@ -10,14 +10,14 @@ use muta::MutaBuilder;
 use protocol::traits::{SDKFactory, Service, ServiceMapping, ServiceSDK};
 use protocol::{ProtocolError, ProtocolErrorKind, ProtocolResult};
 
-type AuthorizationEntity<T> = AuthorizationService<
-    AdmissionControlService<
-        AssetService<T>,
-        GovernanceService<AssetService<T>, MetadataService<T>, T>,
-        T,
-    >,
-    T,
->;
+// type AuthorizationEntity<T> = AuthorizationService<
+//     AdmissionControlService<
+//         AssetService<T>,
+//         GovernanceService<AssetService<T>, MetadataService<T>, T>,
+//         T,
+//     >,
+//     T,
+// >;
 
 type AdmissionControlEntity<T> = AdmissionControlService<
     AssetService<T>,
@@ -113,13 +113,11 @@ impl DefaultServiceMapping {
 
     fn new_authorization<SDK: 'static + ServiceSDK, Factory: SDKFactory<SDK>>(
         factory: &Factory,
-    ) -> ProtocolResult<AuthorizationEntity<SDK>> {
+    ) -> ProtocolResult<AuthorizationService<SDK>> {
         let multi_sig = Self::new_multi_sig(factory)?;
-        let admission_control = Self::new_admission_ctrl(factory)?;
         Ok(AuthorizationService::new(
             factory.get_sdk("authorization")?,
             multi_sig,
-            admission_control,
         ))
     }
 }

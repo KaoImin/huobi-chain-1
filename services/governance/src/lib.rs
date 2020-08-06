@@ -381,174 +381,174 @@ where
         Ok(profit_sum)
     }
 
-    #[hook_before]
-    fn set_block_miner(&mut self, params: &ExecutorParams) {
-        let miner_addr = {
-            let opt_miner = self.miners.get(&params.proposer);
-            opt_miner.unwrap_or_else(|| params.proposer.clone())
-        };
+    // #[hook_before]
+    // fn set_block_miner(&mut self, params: &ExecutorParams) {
+    //     let miner_addr = {
+    //         let opt_miner = self.miners.get(&params.proposer);
+    //         opt_miner.unwrap_or_else(|| params.proposer.clone())
+    //     };
 
-        self.sdk.set_value(BLOCK_MINER_KEY.to_owned(), miner_addr);
-    }
+    //     self.sdk.set_value(BLOCK_MINER_KEY.to_owned(), miner_addr);
+    // }
 
-    #[tx_hook_before]
-    fn pledge_fee(&mut self, ctx: ServiceContext) -> ServiceResponse<String> {
-        let info = self
-            .sdk
-            .get_value::<_, GovernanceInfo>(&INFO_KEY.to_owned());
-        let miner_addr = self.sdk.get_value(&BLOCK_MINER_KEY.to_owned());
+    // #[tx_hook_before]
+    // fn pledge_fee(&mut self, ctx: ServiceContext) -> ServiceResponse<String> {
+    //     let info = self
+    //         .sdk
+    //         .get_value::<_, GovernanceInfo>(&INFO_KEY.to_owned());
+    //     let miner_addr = self.sdk.get_value(&BLOCK_MINER_KEY.to_owned());
 
-        if info.is_none() || miner_addr.is_none() {
-            return ServiceError::MissingInfo.into();
-        }
+    //     if info.is_none() || miner_addr.is_none() {
+    //         return ServiceError::MissingInfo.into();
+    //     }
 
-        let info = info.unwrap();
-        let miner_addr = miner_addr.unwrap();
-        // clean fee
-        let profits = self.profits.iter().map(|pair| pair.0).collect::<Vec<_>>();
+    //     let info = info.unwrap();
+    //     let miner_addr = miner_addr.unwrap();
+    //     // clean fee
+    //     let profits = self.profits.iter().map(|pair| pair.0).collect::<Vec<_>>();
 
-        profits
-            .into_iter()
-            .for_each(|addr| self.profits.insert(addr, 0));
+    //     profits
+    //         .into_iter()
+    //         .for_each(|addr| self.profits.insert(addr, 0));
 
-        // Pledge the tx failure fee before executed the transaction.
-        let ret = self.hook_transfer_from(&ctx, HookTransferFromPayload {
-            sender:    ctx.get_caller(),
-            recipient: miner_addr,
-            value:     info.tx_failure_fee,
-            memo:      "pledge tx failure fee".to_string(),
-        });
+    //     // Pledge the tx failure fee before executed the transaction.
+    //     let ret = self.hook_transfer_from(&ctx, HookTransferFromPayload {
+    //         sender:    ctx.get_caller(),
+    //         recipient: miner_addr,
+    //         value:     info.tx_failure_fee,
+    //         memo:      "pledge tx failure fee".to_string(),
+    //     });
 
-        if let Err(e) = ret {
-            if e.is_error() {
-                return ServiceResponse::from_error(e.code, e.error_message);
-            }
-        }
+    //     if let Err(e) = ret {
+    //         if e.is_error() {
+    //             return ServiceResponse::from_error(e.code, e.error_message);
+    //         }
+    //     }
 
-        ServiceResponse::from_succeed("".to_owned())
-    }
+    //     ServiceResponse::from_succeed("".to_owned())
+    // }
 
-    #[tx_hook_after]
-    fn deduct_fee(&mut self, ctx: ServiceContext) -> ServiceResponse<String> {
-        let tx_fee = self.calc_tx_fee(&ctx);
-        if tx_fee.is_err() {
-            return tx_fee.err().unwrap().into();
-        }
+    // #[tx_hook_after]
+    // fn deduct_fee(&mut self, ctx: ServiceContext) -> ServiceResponse<String> {
+    //     let tx_fee = self.calc_tx_fee(&ctx);
+    //     if tx_fee.is_err() {
+    //         return tx_fee.err().unwrap().into();
+    //     }
 
-        let miner_addr: Address = match self.sdk.get_value(&BLOCK_MINER_KEY.to_owned()) {
-            None => return ServiceError::MissingInfo.into(),
-            Some(addr) => addr,
-        };
+    //     let miner_addr: Address = match
+    // self.sdk.get_value(&BLOCK_MINER_KEY.to_owned()) {         None => return
+    // ServiceError::MissingInfo.into(),         Some(addr) => addr,
+    //     };
 
-        let info: GovernanceInfo = match self.sdk.get_value(&INFO_KEY.to_owned()) {
-            None => return ServiceError::MissingInfo.into(),
-            Some(info) => info,
-        };
+    //     let info: GovernanceInfo = match self.sdk.get_value(&INFO_KEY.to_owned())
+    // {         None => return ServiceError::MissingInfo.into(),
+    //         Some(info) => info,
+    //     };
 
-        let tx_fee = tx_fee.unwrap();
-        if tx_fee == 0 {
-            let resp = Self::emit_event(&ctx, "ConsumedTxFee".to_owned(), ConsumedTxFee {
-                caller: ctx.get_caller(),
-                miner:  miner_addr,
-                amount: info.tx_failure_fee,
-            });
+    //     let tx_fee = tx_fee.unwrap();
+    //     if tx_fee == 0 {
+    //         let resp = Self::emit_event(&ctx, "ConsumedTxFee".to_owned(),
+    // ConsumedTxFee {             caller: ctx.get_caller(),
+    //             miner:  miner_addr,
+    //             amount: info.tx_failure_fee,
+    //         });
 
-            let resp = if resp.is_error() {
-                ServiceResponse::from_error(resp.code, resp.error_message)
-            } else {
-                ServiceResponse::from_succeed("".to_owned())
-            };
+    //         let resp = if resp.is_error() {
+    //             ServiceResponse::from_error(resp.code, resp.error_message)
+    //         } else {
+    //             ServiceResponse::from_succeed("".to_owned())
+    //         };
 
-            return resp;
-        }
+    //         return resp;
+    //     }
 
-        let (tx, rx) = if tx_fee > 0 {
-            (ctx.get_caller(), miner_addr.clone())
-        } else {
-            (miner_addr.clone(), ctx.get_caller())
-        };
+    //     let (tx, rx) = if tx_fee > 0 {
+    //         (ctx.get_caller(), miner_addr.clone())
+    //     } else {
+    //         (miner_addr.clone(), ctx.get_caller())
+    //     };
 
-        let ret = self.hook_transfer_from(&ctx, HookTransferFromPayload {
-            sender:    tx,
-            recipient: rx,
-            value:     tx_fee.abs() as u64,
-            memo:      "collect tx fee".to_string(),
-        });
+    //     let ret = self.hook_transfer_from(&ctx, HookTransferFromPayload {
+    //         sender:    tx,
+    //         recipient: rx,
+    //         value:     tx_fee.abs() as u64,
+    //         memo:      "collect tx fee".to_string(),
+    //     });
 
-        if let Err(e) = ret {
-            if e.is_error() {
-                return ServiceResponse::from_error(e.code, e.error_message);
-            }
-        }
+    //     if let Err(e) = ret {
+    //         if e.is_error() {
+    //             return ServiceResponse::from_error(e.code, e.error_message);
+    //         }
+    //     }
 
-        let amount = match consumed_tx_fee(info.tx_failure_fee, tx_fee) {
-            Err(err) => {
-                return err.into();
-            }
-            Ok(v) => v,
-        };
+    //     let amount = match consumed_tx_fee(info.tx_failure_fee, tx_fee) {
+    //         Err(err) => {
+    //             return err.into();
+    //         }
+    //         Ok(v) => v,
+    //     };
 
-        let resp = Self::emit_event(&ctx, "ConsumedTxFee".to_owned(), ConsumedTxFee {
-            caller: ctx.get_caller(),
-            miner: miner_addr,
-            amount,
-        });
+    //     let resp = Self::emit_event(&ctx, "ConsumedTxFee".to_owned(),
+    // ConsumedTxFee {         caller: ctx.get_caller(),
+    //         miner: miner_addr,
+    //         amount,
+    //     });
 
-        if resp.is_error() {
-            ServiceResponse::from_error(resp.code, resp.error_message)
-        } else {
-            ServiceResponse::from_succeed("".to_owned())
-        }
-    }
+    //     if resp.is_error() {
+    //         ServiceResponse::from_error(resp.code, resp.error_message)
+    //     } else {
+    //         ServiceResponse::from_succeed("".to_owned())
+    //     }
+    // }
 
-    #[hook_after]
-    fn handle_miner_profit(&mut self, params: &ExecutorParams) {
-        let info = self
-            .sdk
-            .get_value::<_, GovernanceInfo>(&INFO_KEY.to_owned());
+    // #[hook_after]
+    // fn handle_miner_profit(&mut self, params: &ExecutorParams) {
+    //     let info = self
+    //         .sdk
+    //         .get_value::<_, GovernanceInfo>(&INFO_KEY.to_owned());
 
-        let sender_address = self
-            .sdk
-            .get_value::<_, Address>(&MINER_PROFIT_OUTLET_KEY.to_owned());
+    //     let sender_address = self
+    //         .sdk
+    //         .get_value::<_, Address>(&MINER_PROFIT_OUTLET_KEY.to_owned());
 
-        if info.is_none() || sender_address.is_none() {
-            return;
-        }
+    //     if info.is_none() || sender_address.is_none() {
+    //         return;
+    //     }
 
-        let info = info.unwrap();
-        let sender_address = sender_address.unwrap();
+    //     let info = info.unwrap();
+    //     let sender_address = sender_address.unwrap();
 
-        let ctx_params = ServiceContextParams {
-            tx_hash:         None,
-            nonce:           None,
-            cycles_limit:    params.cycles_limit,
-            cycles_price:    1,
-            cycles_used:     Rc::new(RefCell::new(0)),
-            caller:          sender_address.clone(),
-            height:          params.height,
-            service_name:    String::new(),
-            service_method:  String::new(),
-            service_payload: String::new(),
-            extra:           Some(ADMISSION_TOKEN.clone()),
-            timestamp:       params.timestamp,
-            events:          Rc::new(RefCell::new(vec![])),
-        };
+    //     let ctx_params = ServiceContextParams {
+    //         tx_hash:         None,
+    //         nonce:           None,
+    //         cycles_limit:    params.cycles_limit,
+    //         cycles_price:    1,
+    //         cycles_used:     Rc::new(RefCell::new(0)),
+    //         caller:          sender_address.clone(),
+    //         height:          params.height,
+    //         service_name:    String::new(),
+    //         service_method:  String::new(),
+    //         service_payload: String::new(),
+    //         extra:           Some(ADMISSION_TOKEN.clone()),
+    //         timestamp:       params.timestamp,
+    //         events:          Rc::new(RefCell::new(vec![])),
+    //     };
 
-        let recipient_addr = if let Some(addr) = self.miners.get(&params.proposer) {
-            addr
-        } else {
-            params.proposer.clone()
-        };
+    //     let recipient_addr = if let Some(addr) =
+    // self.miners.get(&params.proposer) {         addr
+    //     } else {
+    //         params.proposer.clone()
+    //     };
 
-        let payload = HookTransferFromPayload {
-            sender:    sender_address,
-            recipient: recipient_addr,
-            value:     info.miner_benefit,
-            memo:      "pay miner fee".to_string(),
-        };
+    //     let payload = HookTransferFromPayload {
+    //         sender:    sender_address,
+    //         recipient: recipient_addr,
+    //         value:     info.miner_benefit,
+    //         memo:      "pay miner fee".to_string(),
+    //     };
 
-        let _ = self.hook_transfer_from(&ServiceContext::new(ctx_params), payload);
-    }
+    //     let _ = self.hook_transfer_from(&ServiceContext::new(ctx_params),
+    // payload); }
 
     fn calc_tx_fee(&mut self, ctx: &ServiceContext) -> Result<i128, ServiceError> {
         if ctx.canceled() {
