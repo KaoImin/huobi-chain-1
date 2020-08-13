@@ -373,7 +373,7 @@ checksum = "4d25d88fd6b8041580a654f9d0c581a047baee2b3efee13275f2fc392fc75034"
 [[package]]
 name = "asset"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "binding-macro",
  "byteorder",
@@ -565,7 +565,7 @@ dependencies = [
 [[package]]
 name = "binding-macro"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "derive_more 0.15.0",
  "muta-protocol",
@@ -813,7 +813,7 @@ dependencies = [
 [[package]]
 name = "common-apm"
 version = "0.1.0"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "derive_more 0.99.9",
  "lazy_static",
@@ -826,7 +826,7 @@ dependencies = [
 [[package]]
 name = "common-config-parser"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "reqwest",
  "serde",
@@ -838,7 +838,7 @@ dependencies = [
 [[package]]
 name = "common-crypto"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "ophelia",
  "ophelia-bls-amcl",
@@ -848,7 +848,7 @@ dependencies = [
 [[package]]
 name = "common-logger"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "json",
  "log",
@@ -858,7 +858,7 @@ dependencies = [
 [[package]]
 name = "common-merkle"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "muta-protocol",
  "rayon",
@@ -902,7 +902,7 @@ checksum = "a2df960f5d869b2dd8532793fde43eb5427cceb126c929747a26823ab0eeb536"
 [[package]]
 name = "core-api"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "actix-web",
  "async-trait",
@@ -926,7 +926,7 @@ dependencies = [
 [[package]]
 name = "core-consensus"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "async-trait",
  "bincode",
@@ -974,7 +974,7 @@ checksum = "90accdee0acac454f78a41d2eefc1212ec6eaa2ae6a216619389e996c0155c3c"
 [[package]]
 name = "core-mempool"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "async-trait",
  "bytes 0.5.5",
@@ -1001,7 +1001,7 @@ dependencies = [
 [[package]]
 name = "core-network"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "arc-swap 0.4.7",
  "async-trait",
@@ -1031,7 +1031,7 @@ dependencies = [
 [[package]]
 name = "core-storage"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "async-trait",
  "common-apm",
@@ -1344,7 +1344,7 @@ checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 [[package]]
 name = "framework"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "asset 0.2.0-rc",
  "byteorder",
@@ -2211,7 +2211,7 @@ dependencies = [
 [[package]]
 name = "metadata"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "binding-macro",
  "byteorder",
@@ -2337,7 +2337,7 @@ dependencies = [
 [[package]]
 name = "multi-signature"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "binding-macro",
  "byteorder",
@@ -2357,7 +2357,7 @@ dependencies = [
 [[package]]
 name = "muta"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "actix-rt",
  "backtrace",
@@ -2432,7 +2432,7 @@ dependencies = [
 [[package]]
 name = "muta-protocol"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "arc-swap 0.4.7",
  "async-trait",
@@ -4397,7 +4397,7 @@ dependencies = [
 [[package]]
 name = "util"
 version = "0.2.0-rc"
-source = "git+https://github.com/KaoImin/muta?rev=386c0b73#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
+source = "git+https://github.com/KaoImin/muta?rev=9a7e330#386c0b73ca4a9df2869784239c10ffcae8bb77e4"
 dependencies = [
  "binding-macro",
  "byteorder",
