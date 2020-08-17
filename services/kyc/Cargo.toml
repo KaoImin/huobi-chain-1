@@ -13,13 +13,13 @@ serde_json = "1.0"
 rlp = "0.4"
 muta-codec-derive = "0.2"
 
-muta = { git = "https://github.com/KaoImin/muta", rev = "9a7e330"}
-protocol = { git = "https://github.com/KaoImin/muta", rev = "9a7e330", package = "muta-protocol" }
-binding-macro = { git = "https://github.com/KaoImin/muta", rev = "9a7e330" }
+muta = { git = "https://github.com/KaoImin/muta", rev = "a0ca059"}
+protocol = { git = "https://github.com/KaoImin/muta", rev = "a0ca059", package = "muta-protocol" }
+binding-macro = { git = "https://github.com/KaoImin/muta", rev = "a0ca059" }
 
 [dev-dependencies]
 cita_trie = "2.0"
 async-trait = "0.1"
 
-framework = { git = "https://github.com/KaoImin/muta", rev = "9a7e330"}
-core-storage = { git = "https://github.com/KaoImin/muta", rev = "9a7e330" }
+framework = { git = "https://github.com/KaoImin/muta", rev = "a0ca059"}
+core-storage = { git = "https://github.com/KaoImin/muta", rev = "a0ca059" }
