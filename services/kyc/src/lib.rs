@@ -65,6 +65,8 @@ macro_rules! sub_cycles {
     };
 }
 
+pub trait KycInterface {}
+
 #[derive(Debug, Clone, PartialEq, Eq, RlpFixedCodec, Constructor)]
 struct UserTagNamesKey {
     org_name: OrgName,

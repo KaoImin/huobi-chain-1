@@ -44,6 +44,9 @@ pub enum ServiceError {
 
     #[display(fmt = "Can not get admin")]
     CannotGetAdmin,
+
+    #[display(fmt = "Can not get method")]
+    MethodNotFound,
 }
 
 impl ServiceError {
@@ -63,6 +66,7 @@ impl ServiceError {
             ServiceError::WriteInReadonlyContext => 112,
             ServiceError::AssertFailed(_) => 113,
             ServiceError::CannotGetAdmin => 114,
+            ServiceError::MethodNotFound => 115,
         }
     }
 }

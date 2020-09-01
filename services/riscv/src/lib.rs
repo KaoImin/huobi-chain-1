@@ -5,7 +5,7 @@ pub mod error;
 pub mod types;
 pub mod vm;
 
-use asset::Assets;
+use asset::AssetInterface;
 use authorization::Authorization;
 use error::ServiceError;
 use types::{
@@ -68,7 +68,7 @@ pub struct RiscvService<A, SDK> {
 #[service]
 impl<A, SDK> RiscvService<A, SDK>
 where
-    A: Assets + 'static,
+    A: AssetInterface + 'static,
     SDK: ServiceSDK + 'static,
 {
     pub fn init(sdk: SDK, asset: A) -> Self {
