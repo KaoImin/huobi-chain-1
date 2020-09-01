@@ -13,7 +13,6 @@ binding-macro = { git = "https://github.com/nervosnetwork/muta", rev = "b7ceda0"
 
 admission_control = { path = "../admission_control"}
 asset = { path = "../asset" }
-authorization = { path = "../authorization" }
 governance = { path = "../governance" }
 kyc = { path = "../kyc" }
 serde = { version = "1.0", features = ["derive"] }

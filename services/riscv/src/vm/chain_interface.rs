@@ -179,6 +179,28 @@ where
             _ => ServiceError::MethodNotFound.into(),
         }
     }
+
+    fn read_kyc(&self, method: &str, payload: &str) -> ServiceResponse<String> {
+        match method {
+            "get_orgs_" => service_read!(self, kyc, get_orgs_),
+            "get_org_info_" => service_read!(self, kyc, get_org_info_, payload),
+            "get_org_supported_tags_" => service_read!(self, kyc, get_org_supported_tags_, payload),
+            "eval_user_tag_expression_" => {
+                service_read!(self, kyc, eval_user_tag_expression_, payload)
+            }
+            _ => ServiceError::MethodNotFound.into(),
+        }
+    }
+
+    fn write_kyc(&self, method: &str, payload: &str) -> ServiceResponse<String> {
+        match method {
+            "change_org_approved_" => service_write!(self, kyc, change_org_approved_, payload),
+            "register_org_" => service_write!(self, kyc, register_org_, payload),
+            "update_supported_tags_" => service_write!(self, kyc, update_supported_tags_, payload),
+            "update_user_tags_" => service_write!(self, kyc, update_user_tags_, payload),
+            _ => ServiceError::MethodNotFound.into(),
+        }
+    }
 }
 
 impl<AS, G, K, SDK> ChainInterface for WriteableChain<AS, G, K, SDK>
@@ -231,7 +253,8 @@ where
             match service {
                 "asset" => self.read_asset(method, payload),
                 "governance" => self.read_governance(method, payload),
-                _ => todo!(),
+                "kyc" => self.read_kyc(method, payload),
+                _ => ServiceError::ServiceNotFound.into(),
             }
         });
 
@@ -252,7 +275,8 @@ where
             match service {
                 "asset" => self.write_asset(method, payload),
                 "governance" => self.write_governance(method, payload),
-                _ => todo!(),
+                "kyc" => self.write_kyc(method, payload),
+                _ => ServiceError::ServiceNotFound.into(),
             }
         });
 
