@@ -380,14 +380,10 @@ fn try_encode_service_response<T: Serialize>(
     resp: Result<T, ServiceResponse<()>>,
 ) -> ServiceResponse<String> {
     match resp {
-        Ok(data) => {
-            let json_string = serde_json::to_string(&data);
-            if json_string.is_ok() {
-                ServiceResponse::from_succeed(json_string.unwrap())
-            } else {
-                ServiceError::Serde(json_string.unwrap_err()).into()
-            }
-        }
+        Ok(data) => match serde_json::to_string(&data) {
+            Ok(json_string) => ServiceResponse::from_succeed(json_string),
+            Err(err) => ServiceError::Serde(err).into(),
+        },
         Err(err) => ServiceResponse::from_error(err.code, err.error_message),
     }
 }
