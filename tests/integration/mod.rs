@@ -115,6 +115,7 @@ macro_rules! exec_txs {
 }
 
 mod service_test;
+mod riscv_test;
 mod types;
 
 #[derive(Clone, Debug)]
