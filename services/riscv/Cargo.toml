@@ -27,6 +27,7 @@ log = "0.4"
 [dev-dependencies]
 cita_trie = "2.0"
 async-trait = "0.1"
+metadata = { path = "../metadata" }
 framework = { git = "https://github.com/nervosnetwork/muta", rev = "b7ceda0" }
 core-storage = { git = "https://github.com/nervosnetwork/muta", rev = "b7ceda0" }
 env_logger = "0.7.1"
