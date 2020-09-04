@@ -114,7 +114,6 @@ macro_rules! exec_txs {
     };
 }
 
-mod riscv_test;
 mod service_test;
 mod types;
 
